@@ -42,7 +42,7 @@ class TTSGenerator:
             voice = voice_params or texttospeech.VoiceSelectionParams(
                 language_code="en-US",
                 name="en-US-Wavenet-D",
-                ssml_gender=texttospeech.SsmlVoiceGender.FEMALE
+                ssml_gender=texttospeech.SsmlVoiceGender.MALE
             )
 
             audio_config = texttospeech.AudioConfig(
