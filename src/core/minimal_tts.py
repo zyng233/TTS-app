@@ -6,7 +6,7 @@ from google.api_core.exceptions import GoogleAPICallError
 
 class TTSGenerator:
     def __init__(self):
-        self.credentials_path = Path(__file__).parent.parent / "credentials" / "tts-key.json"
+        self.credentials_path = Path(__file__).parent.parent.parent / "credentials" / "tts-key.json"
         self._validate_credentials()
 
     def _validate_credentials(self):
@@ -74,7 +74,7 @@ def main():
     try:
         tts = TTSGenerator()
         
-        ssml_path = Path(__file__).parent / "se_text.ssml"
+        ssml_path = Path(__file__).parent.parent.parent / "samples" / "se_text.ssml"
         if not ssml_path.exists():
             raise FileNotFoundError(f"SSML file not found at: {ssml_path}")
         
@@ -83,6 +83,7 @@ def main():
         
         output_path = tts.generate_speech(
             text=ssml_content,
+            output_file="se_concept.mp3",
             is_ssml=True
         )
         
