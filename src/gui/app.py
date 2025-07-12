@@ -1,22 +1,22 @@
+import io
+import platform
+import sys
+from pathlib import Path
+import pygame
 import tkinter as tk
 from tkinter import ttk, messagebox
-from pathlib import Path
-import io
-import pygame
 from .components.TextEditor import TextEditor
 from .components.VoiceDropdown import VoiceDropdown
-from .components.LanguageDropdown import LanguageDropdown 
+from .components.LanguageDropdown import LanguageDropdown
 from core.tts import TTSGenerator
 
 class TTSApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Text-to-Speech Player")
-        self.geometry("600x400")
-        self.minsize(400, 300)
+        self._set_platform_specifics()
         self.is_playing = False
-        
-        pygame.mixer.init()
+        self._init_audio()
         
         try:
             self.tts_engine = TTSGenerator()
@@ -26,7 +26,22 @@ class TTSApp(tk.Tk):
             return
         
         self._setup_ui()
-        
+
+    def _set_platform_specifics(self):
+        """Platform-specific adjustments"""
+        if platform.system() == 'Darwin':
+            self.geometry("620x450") 
+            if getattr(sys, 'frozen', False) and '.app' in sys.executable:
+                self.createcommand('tk::mac::ReopenApplication', self._on_reopen)
+        else:
+            self.geometry("600x400")
+        self.minsize(400, 300)
+
+    def _init_audio(self):
+        """Initialize audio with platform-appropriate settings"""
+        buffer_size = 2048 if platform.system() == 'Darwin' else 1024
+        pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=buffer_size)
+
     def _setup_ui(self):
         main_frame = ttk.Frame(self, padding="10")
         main_frame.pack(expand=True, fill=tk.BOTH)
@@ -82,7 +97,7 @@ class TTSApp(tk.Tk):
         """Generate and play audio directly"""
         self.status_var.set("Generating audio...")
         self.update()
-        
+
         text = self.text_editor.get_text()
         if not text:
             self.status_var.set("Error: Please enter some text")
@@ -175,12 +190,27 @@ class TTSApp(tk.Tk):
         self.update_idletasks()
         self.after(3000, lambda: self.status_var.set("Ready"))
 
+    def _on_reopen(self):
+        """Handle macOS app reopen event (for App Store)"""
+        self.deiconify()
+
     def on_close(self):
         """Cleanup when closing the app"""
         pygame.mixer.quit()
         self.destroy()
         
 if __name__ == "__main__":
+    if platform.system() == 'Darwin' and getattr(sys, 'frozen', False):
+        try:
+            from Foundation import NSBundle
+            bundle = NSBundle.mainBundle()
+            if bundle:
+                info = bundle.localizedInfoDictionary() or bundle.infoDictionary()
+                if info:
+                    info['CFBundleName'] = "TTS Player"
+        except ImportError:
+            pass
+
     app = TTSApp()
     app.protocol("WM_DELETE_WINDOW", app.on_close)
     app.mainloop()
