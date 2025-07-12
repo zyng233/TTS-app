@@ -1,23 +1,20 @@
 import sys
+from langcodes import Language
 from pathlib import Path
-from typing import Optional, Dict, Union
+from typing import Optional, Dict, Union, List, Tuple
 from google.cloud import texttospeech
 from google.oauth2 import service_account
 from google.api_core.exceptions import GoogleAPICallError
+import logging
 
 class TTSGenerator:
-
+    
     VOICE_PRESETS = {
         "en-US-Wavenet-D": {
             "language_code": "en-US",
             "name": "en-US-Wavenet-D",
             "ssml_gender": texttospeech.SsmlVoiceGender.MALE
         },
-        "en-US-Neural2-J": {
-            "language_code": "en-US",
-            "name": "en-US-Neural2-J",
-            "ssml_gender": texttospeech.SsmlVoiceGender.FEMALE
-        }
     }
     
     AUDIO_FORMATS = {
@@ -32,6 +29,7 @@ class TTSGenerator:
         )
         self._validate_credentials()
         self.client = self._initialize_client()
+        self.logger = self._setup_logger()
 
     def _validate_credentials(self) -> None:
         if not self.credentials_path.exists():
@@ -46,108 +44,93 @@ class TTSGenerator:
         )
         return texttospeech.TextToSpeechClient(credentials=credentials)
 
-    def list_voices(self, language_code: str = None) -> list:
+    def _setup_logger(self):
+        logger = logging.getLogger(__name__)
+        logger.setLevel(logging.INFO)
+        handler = logging.StreamHandler()
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+        return logger
+    
+    def get_available_languages(self, format: str = "both") -> List[Union[str, Tuple[str, str]]]:
+        """Get available languages in different formats"""
+        try:
+            response = self.client.list_voices()
+            languages = set()
+            for voice in response.voices:
+                lang_code = voice.language_codes[0].split('-')[0]
+                languages.add((lang_code, self._get_language_name(lang_code)))
+            
+            sorted_langs = sorted(languages, key=lambda x: x[1])
+            
+            if format == "name":
+                return [name for (code, name) in sorted_langs]
+            elif format == "code":
+                return [code for (code, name) in sorted_langs]
+            elif format == "full":
+                return [f"{name} ({code})" for (code, name) in sorted_langs]
+            else:
+                return sorted_langs
+                
+        except GoogleAPICallError as e:
+            self.logger.error(f"Failed to list languages: {e.message}")
+            raise RuntimeError(f"Couldn't retrieve languages: {e.message}")
+    
+    def get_voices_for_language(self, language_code: str, voice_type: Optional[str] = None) -> List[Dict]:
+        """Return available voices for a specific language with optional type filter"""
         try:
             response = self.client.list_voices(language_code=language_code)
-            return [voice.name for voice in response.voices]
+            voices = [{
+                'name': voice.name,
+                'gender': voice.ssml_gender.name,
+                'language': voice.language_codes[0],
+                'sample_rate': voice.natural_sample_rate_hertz,
+                'voice_type': 'Neural' if 'Neural' in voice.name else 'WaveNet'
+            } for voice in response.voices]
+            
+            if voice_type:
+                return [v for v in voices if v['voice_type'] == voice_type]
+            return voices
+            
         except GoogleAPICallError as e:
-            raise RuntimeError(f"Failed to list voices: {e.message}") from e
-
-    def generate_speech(
-        self,
-        text: str,
-        output_file: Union[str, Path] = "output.mp3",
-        voice_name: str = "en-US-Wavenet-D",
-        audio_format: str = "MP3",
-        speaking_rate: float = 1.0,
-        pitch: float = 0.0,
-        is_ssml: bool = False,
-        voice_params: Optional[Dict] = None
-    ) -> Path:
-        """
-        Convert text/SSML to speech audio file with enhanced parameters.
-        
-        Args:
-            text: Input text or SSML content
-            output_file: Output filename (default: "output.mp3")
-            voice_name: Name of the voice to use (default: "en-US-Wavenet-D")
-            audio_format: Output format (MP3, WAV, OGG) (default: "MP3")
-            speaking_rate: Speaking speed multiplier (default: 1.0)
-            pitch: Pitch adjustment (-20.0 to 20.0) (default: 0.0)
-            is_ssml: Whether input is SSML markup (default: False)
-            voice_params: Custom voice parameters (optional)
-            
-        Returns:
-            Path to the generated audio file
-            
-        Raises:
-            RuntimeError: If speech generation fails
-            ValueError: If invalid parameters are provided
-        """
-        try:
-            if audio_format.upper() not in self.AUDIO_FORMATS:
-                raise ValueError(
-                    f"Unsupported audio format: {audio_format}. "
-                    f"Supported formats: {list(self.AUDIO_FORMATS.keys())}"
-                )
-
-            synthesis_input = (
-                texttospeech.SynthesisInput(ssml=text) if is_ssml
-                else texttospeech.SynthesisInput(text=text)
-            )
-
-            voice = self._prepare_voice_params(voice_name, voice_params)
-
-            audio_config = texttospeech.AudioConfig(
-                audio_encoding=self.AUDIO_FORMATS[audio_format.upper()],
-                speaking_rate=speaking_rate,
-                pitch=pitch
-            )
-
-            response = self.client.synthesize_speech(
-                input=synthesis_input,
-                voice=voice,
-                audio_config=audio_config
-            )
-
-            output_path = Path(output_file)
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            
-            with open(output_path, "wb") as out:
-                out.write(response.audio_content)
-            
-            return output_path
-
-        except GoogleAPICallError as e:
-            raise RuntimeError(f"Google TTS API error: {e.message}") from e
-        except Exception as e:
-            raise RuntimeError(f"Speech generation failed: {str(e)}") from e
+            self.logger.error(f"Failed to list voices: {e.message}")
+            raise RuntimeError(f"Couldn't retrieve voices: {e.message}")
     
+    def get_language_codes(self):
+        """Return list of available language codes"""
+        try:
+            response = self.client.list_voices()
+            return sorted({voice.language_codes[0].split('-')[0] 
+                        for voice in response.voices})
+        except GoogleAPICallError as e:
+            self.logger.error(f"Failed to list language codes: {e.message}")
+            raise RuntimeError(f"Couldn't retrieve language codes: {e.message}")
+        
     def generate_to_memory(
         self,
         text: str,
-        voice_name: str = "en-US-Wavenet-D",
+        voice_name: Optional[str] = None,
+        voice_data: Optional[Dict] = None,
         audio_format: str = "MP3",
         speaking_rate: float = 1.0,
         pitch: float = 0.0,
-        is_ssml: bool = False,
-        voice_params: Optional[Dict] = None
+        is_ssml: bool = False
     ) -> bytes:
         """
         Generate speech and return audio binary data
         
         Args:
             text: Input text/SSML
-            voice_name: Voice to use
+            voice_name: Voice name (e.g., "en-US-Wavenet-D")
+            voice_data: Full voice parameters (overrides voice_name)
             audio_format: Output format
             speaking_rate: Speed multiplier
             pitch: Pitch adjustment
             is_ssml: Whether input is SSML
-            voice_params: Custom voice params
-            
-        Returns:
-            bytes: Audio data in specified format
         """
+        voice_params = voice_data or {"name": voice_name or "en-US-Wavenet-D"}
+        
         try:
             if audio_format.upper() not in self.AUDIO_FORMATS:
                 raise ValueError(f"Unsupported audio format: {audio_format}")
@@ -185,52 +168,57 @@ class TTSGenerator:
         if voice_name in self.VOICE_PRESETS:
             return texttospeech.VoiceSelectionParams(**self.VOICE_PRESETS[voice_name])
         
+        for lang_code in self.get_language_codes():
+            voices = self.get_voices_for_language(lang_code)
+            for voice in voices:
+                if voice['name'] == voice_name:
+                    return texttospeech.VoiceSelectionParams(
+                        language_code=voice['language'],
+                        name=voice['name'],
+                        ssml_gender=getattr(texttospeech.SsmlVoiceGender, voice['gender'])
+                    )
         parts = voice_name.split("-")
         if len(parts) >= 3:
             language_code = "-".join(parts[:2])
             return texttospeech.VoiceSelectionParams(
                 language_code=language_code,
                 name=voice_name,
-                ssml_gender=self._guess_gender(voice_name)
-            )
-        
+                ssml_gender=texttospeech.SsmlVoiceGender.MALE  # Default to male
+            )    
+            
         return texttospeech.VoiceSelectionParams(
             language_code="en-US",
             name="en-US-Wavenet-D",
             ssml_gender=texttospeech.SsmlVoiceGender.MALE
         )
-
+        
+    def _validate_audio_format(self, format_str: str) -> texttospeech.AudioEncoding:
+        """Validate and return audio format enum"""
+        format_str = format_str.upper()
+        if format_str not in self.AUDIO_FORMATS:
+            raise ValueError(
+                f"Unsupported audio format: {format_str}. "
+                f"Supported formats: {list(self.AUDIO_FORMATS.keys())}"
+            )
+        return self.AUDIO_FORMATS[format_str]
+    
+    def validate_language_code(self, code: str) -> bool:
+        """Check if language code is available"""
+        return code in [lang[0] for lang in self.get_available_languages()]
+    
     @staticmethod
-    def _guess_gender(voice_name: str) -> texttospeech.SsmlVoiceGender:
-        """Guess gender from voice name."""
-        voice_name = voice_name.lower()
-        if "female" in voice_name or "-a" in voice_name or "-c" in voice_name or "-f" in voice_name:
-            return texttospeech.SsmlVoiceGender.FEMALE
-        return texttospeech.SsmlVoiceGender.MALE
-
+    def _get_language_name(lang_code: str) -> str:
+        """Get language name"""
+        return Language.get(lang_code).display_name()
 
 def main():
     print("=== Google Cloud TTS Generator ===")
-    
     try:
         tts = TTSGenerator()
-        
-        output_path = tts.generate_speech(
-            text="Hello, this is a test of the enhanced TTS system.",
-            output_file="enhanced_output.mp3",
-            voice_name="en-US-Neural2-J",
-            audio_format="MP3",
-            speaking_rate=1.1,
-            pitch=2.0
-        )
-        
-        print(f"\n✅ Successfully generated audio at: {output_path}")
         return 0
-    
     except Exception as e:
         print(f"\n❌ Error: {str(e)}", file=sys.stderr)
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())
