@@ -1,4 +1,5 @@
 import sys
+import os
 from langcodes import Language
 from pathlib import Path
 from typing import Optional, Dict, Union, List, Tuple
@@ -24,12 +25,37 @@ class TTSGenerator:
     }
 
     def __init__(self, credentials_path: Optional[Path] = None):
-        self.credentials_path = credentials_path or (
-            Path(__file__).parent.parent.parent / "credentials" / "tts-key.json"
-        )
+        self.credentials_path = credentials_path or self._get_credentials_path()
         self._validate_credentials()
         self.client = self._initialize_client()
         self.logger = self._setup_logger()
+
+    def _get_credentials_path(self) -> Path:
+        """Path resolution"""
+        base_path = Path(getattr(sys, '_MEIPASS', Path(__file__).parent.parent))
+        
+        possible_paths = [
+            # 1. Explicitly specified path (handled in __init__)
+            # 2. Next to executable (for release version)
+            Path(sys.executable).parent / "credentials" / "credentials.json",
+            
+            # 3. In bundled app resources (PyInstaller)
+            base_path / "credentials" / "credentials.json",
+            
+            # 4. User config directory (cross-platform)
+            Path.home() / ".tts_app" / "credentials.json",
+            
+            # 5. Development repo location
+            Path(__file__).parent.parent.parent / "credentials" / "credentials.json"
+        ]
+
+        for path in possible_paths:
+            if path.exists():
+                return path
+
+        default_path = Path(sys.executable).parent / "credentials" / "credentials.json"
+        default_path.parent.mkdir(exist_ok=True, parents=True)
+        return default_path
 
     def _validate_credentials(self) -> None:
         if not self.credentials_path.exists():

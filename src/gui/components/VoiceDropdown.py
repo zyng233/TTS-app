@@ -37,7 +37,7 @@ class VoiceDropdown(ttk.Frame):
             self.details_var.set("Loading voices...")
             self.update_idletasks()
             
-            self.voices = self.tts.get_voices_for_language(language_code)  # Fixed method name
+            self.voices = self.tts.get_voices_for_language(language_code)
             voice_names = [v['name'] for v in self.voices]
             
             if not voice_names:
