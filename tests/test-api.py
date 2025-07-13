@@ -155,10 +155,39 @@ def list_voices():
     for voice in voices.voices:
         print(f"{voice.name}: {voice.language_codes[0]} ({voice.ssml_gender.name})")
 
+def list_english_voices():
+    creds_path = Path(__file__).parent.parent / "credentials" / "tts-key.json"
+        
+    if not creds_path.exists():
+        raise FileNotFoundError(
+            f"Google Cloud credentials not found at {creds_path}\n"
+        )
+
+    credentials = service_account.Credentials.from_service_account_file(
+        str(creds_path),
+        scopes=["https://www.googleapis.com/auth/cloud-platform"]
+    )
+    client = texttospeech.TextToSpeechClient(credentials=credentials)
+    
+    response = client.list_voices(language_code='en')
+    
+    print("\nAvailable English Voices:")
+    print("-" * 40)
+    for voice in response.voices:
+        base_lang = voice.language_codes[0].split('-')[0]
+
+        if base_lang == 'en':
+            gender = voice.ssml_gender.name
+            sample_rate = voice.natural_sample_rate_hertz
+            print(f"{voice.name.ljust(20)} | {voice.language_codes[0].ljust(7)} | {gender.ljust(8)}")
+    
+    print("-" * 40)
+    
 # test_voices()
 # test_ssml()
 # test_audio_profiles()
 # test_custom_audio()
 # list_voices()
+list_english_voices()
 
 
