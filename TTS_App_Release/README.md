@@ -33,7 +33,7 @@ A cross-platform app for converting text to speech using cloud TTS services.
      chmod +x tts_app
      ./tts_app
      ```
-     **Linux**:
+   - **Linux**:
      ```bash
      cd Linux
      chmod +x tts_app
