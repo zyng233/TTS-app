@@ -54,16 +54,6 @@ A cross-platform app for converting text to speech using cloud TTS services.
    - Select JSON format and download the file
    - Save as `credentials/credentials.json` in the application directory
 
-## ▶️ Running the Application
-
-### For Downloaded Releases
-
-| Platform    | Instructions                          |
-| ----------- | ------------------------------------- |
-| **Windows** | Double-click `TTSApp.exe`             |
-| **Mac**     | 1. `chmod +x TTSApp`<br>2. `./TTSApp` |
-| **Linux**   | 1. `chmod +x TTSApp`<br>2. `./TTSApp` |
-
 ## 🎮 How to Use
 
 ### 1. Enter Text
@@ -84,8 +74,10 @@ Type or paste your text into the main text box:
 
 ### 3. Control Playback
 
-| Play Audio | Generates and plays audio
-| Stop | Immediately stops playback
+| Button      | Action                     |
+| ----------- | -------------------------- |
+| ▶️ **Play** | Generates and plays audio  |
+| ⏹ **Stop**  | Immediately stops playback |
 
 ### 4. Advanced Options
 
