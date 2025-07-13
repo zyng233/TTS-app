@@ -30,7 +30,7 @@ jobs:
         shell: bash
 
       - name: Build with PyInstaller
-        run: pyinstaller --onefile main.py
+        run: pyinstaller --onefile src/main.py
         shell: bash
 
       - name: Rename and move binary
