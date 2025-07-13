@@ -70,21 +70,25 @@ A cross-platform app for converting text to speech using cloud TTS services.
 
 Type or paste your text into the main text box:
 
-````xml
+```xml
 <!-- Example using SSML -->
 <speak>
   Hello <break time="0.5s"/>, welcome to <prosody rate="slow">TTS App</prosody>!
 </speak>
+```
 
 ### 2. Select Language & Voice
+
 1. Choose a language from the dropdown (e.g., "English (US)")
 2. Select your preferred voice (e.g., "Wavenet-D")
 
 ### 3. Control Playback
+
 | Play Audio | Generates and plays audio
-| Stop       | Immediately stops playback
+| Stop | Immediately stops playback
 
 ### 4. Advanced Options
+
 - **SSML MODE**: Check to enable SSML tags
 
 ## 🛠 For Developers
@@ -95,4 +99,4 @@ pip install google-cloud-texttospeech pygame
 
 # Build executable
 pyinstaller --onefile --add-data "credentials;credentials" src/main.py
-````
+```
