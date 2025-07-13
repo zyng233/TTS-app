@@ -24,20 +24,17 @@ A cross-platform app for converting text to speech using cloud TTS services.
 4. Run the executable
    - **Windows**:
      ```bash
-     cd Windows
-     .\tts_app.exe
+     .\TTS_App_Windows.exe
      ```
    - **Mac**:
      ```bash
-     cd Mac
-     chmod +x tts_app
-     ./tts_app
+     chmod +x TTS_App_macOS
+     ./TTS_App_macOS
      ```
    - **Linux**:
      ```bash
-     cd Linux
-     chmod +x tts_app
-     ./tts_app
+     chmod +x TTS_App_Linux
+     ./TTS_App_Linux
      ```
 
 ## Detailed Setup

@@ -50,3 +50,11 @@ jobs:
         with:
           name: TTS_App_${{ runner.os }}
           path: dist-release/*
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: dist-release/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
