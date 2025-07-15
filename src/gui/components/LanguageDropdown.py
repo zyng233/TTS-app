@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Dict
 
 class LanguageDropdown(ttk.Frame):
     def __init__(self, master, tts_generator=None, **kwargs):

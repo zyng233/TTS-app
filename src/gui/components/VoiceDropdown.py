@@ -66,10 +66,14 @@ class VoiceDropdown(ttk.Frame):
 
     def get_selected_voice(self) -> Optional[Dict]:
         """Get complete details of the currently selected voice."""
-        selected = self.voice_var.get()
-        if not selected or not self.voices:
+        if not self.voices or not self.voice_var.get():
             return None
-        return next((v for v in self.voices if v['name'] == selected), None)
+        
+        selected = self.voice_var.get()
+        try:
+            return next(v for v in self.voices if v['name'] == selected)
+        except StopIteration:
+            return None
 
     def clear_voices(self):
         """Reset the voice dropdown"""
