@@ -43,7 +43,7 @@ def initialize_client(credentials_path: Path):
             scopes=["https://www.googleapis.com/auth/cloud-platform"]
         )
         client = texttospeech.TextToSpeechClient(credentials=credentials)
-        return client
+        return client, credentials
     except Exception as e:
         print(f"Client creation failed: {str(e)}")
         raise

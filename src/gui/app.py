@@ -8,7 +8,9 @@ from tkinter import ttk, messagebox
 from .components.TextEditor import TextEditor
 from .components.VoiceDropdown import VoiceDropdown
 from .components.LanguageDropdown import LanguageDropdown
+from .components.QuotapPanel import QuotaPanel
 from core.tts import TTSGenerator
+from core.utils import setup_logger
 
 class TTSApp(tk.Tk):
     def __init__(self):
@@ -17,6 +19,7 @@ class TTSApp(tk.Tk):
         self._set_platform_specifics()
         self.is_playing = False
         self._init_audio()
+        self.logger = setup_logger()
         
         try:
             self.tts_engine = TTSGenerator()
@@ -30,12 +33,12 @@ class TTSApp(tk.Tk):
     def _set_platform_specifics(self):
         """Platform-specific adjustments"""
         if platform.system() == 'Darwin':
-            self.geometry("620x450") 
+            self.geometry("620x500") 
             if getattr(sys, 'frozen', False) and '.app' in sys.executable:
                 self.createcommand('tk::mac::ReopenApplication', self._on_reopen)
         else:
-            self.geometry("600x400")
-        self.minsize(400, 300)
+            self.geometry("600x480")
+        self.minsize(400, 350)
 
     def _init_audio(self):
         """Initialize audio with platform-appropriate settings"""
@@ -87,11 +90,30 @@ class TTSApp(tk.Tk):
     
         self.language_dropdown.load_languages()
         
+        self.quota_panel = QuotaPanel(main_frame)
+        self.quota_panel.pack(fill=tk.X, pady=10)
+        self.update_quota()
+    
     def _update_voices(self, event=None):
         """Update available voices when language changes"""
         selected_language = self.language_dropdown.get_selected_language()
         if selected_language:
             self.voice_dropdown.load_voices_for_language(selected_language)
+    
+    def update_quota(self):
+        """Update quota display"""
+        try:
+            stats = self.tts_engine.get_usage_stats()
+            self.quota_panel.update_stats({
+                'characters_used': stats['characters_used'],
+                'characters_remaining': stats['characters_remaining'],
+                'requests_used': stats['requests_used'],
+                'requests_remaining': stats['requests_remaining']
+            })
+        except Exception as e:
+            self.logger.error(f"Failed to update quota: {str(e)}")
+        
+        self.after(300000, self.update_quota)
             
     def play_audio(self):
         """Generate and play audio directly"""

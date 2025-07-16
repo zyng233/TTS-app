@@ -5,13 +5,14 @@ from .audio_config import generate_to_memory as generate_audio_to_memory
 from .auth import get_credentials_path, validate_credentials, initialize_client
 from .voice import get_available_languages as voice_get_available_languages
 from .voice import get_voices_for_language as voice_get_voices_for_language
+from .monitor import get_usage_stats as monitor_get_usage_stats
 from .utils import setup_logger
 
 class TTSGenerator:
     def __init__(self, credentials_path: Optional[Path] = None):
         self.credentials_path = credentials_path or get_credentials_path()
         validate_credentials(self.credentials_path)
-        self.client = initialize_client(self.credentials_path)
+        self.client, self.credentials = initialize_client(self.credentials_path)
         if not self.client:
             raise RuntimeError("Failed to initialize TTS client. Check credentials.")
         self.logger = setup_logger()
@@ -42,7 +43,9 @@ class TTSGenerator:
             pitch=pitch,
             is_ssml=is_ssml
         )
-       
+        
+    def get_usage_stats(self):
+        return monitor_get_usage_stats(self)
        
 def main():
     print("=== Google Cloud TTS Generator ===")
