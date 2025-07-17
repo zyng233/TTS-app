@@ -83,7 +83,6 @@ def get_usage_stats(client):
     
     try:
         cloud_data = get_real_time_quota(client)
-        print(cloud_data['characters_used'])
 
         return {
             'characters_used': cloud_data['characters_used'],

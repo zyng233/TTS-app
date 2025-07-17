@@ -5,6 +5,8 @@ from pathlib import Path
 import pygame
 import tkinter as tk
 from tkinter import ttk, messagebox
+from ttkbootstrap import Style
+from ttkbootstrap.widgets import Scale
 from .components.TextEditor import TextEditor
 from .components.VoiceDropdown import VoiceDropdown
 from .components.LanguageDropdown import LanguageDropdown
@@ -20,7 +22,7 @@ class TTSApp(tk.Tk):
         self.is_playing = False
         self._init_audio()
         self.logger = setup_logger()
-        
+                
         try:
             self.tts_engine = TTSGenerator()
         except Exception as e:
@@ -46,20 +48,56 @@ class TTSApp(tk.Tk):
         pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=buffer_size)
 
     def _setup_ui(self):
+        style = Style("simplex") 
         main_frame = ttk.Frame(self, padding="10")
         main_frame.pack(expand=True, fill=tk.BOTH)
         
         ttk.Label(main_frame, text="Enter text:").pack(anchor=tk.W)
         self.text_editor = TextEditor(main_frame)
         self.text_editor.pack(expand=True, fill=tk.BOTH, pady=(0, 10))
- 
-        self.language_dropdown = LanguageDropdown(main_frame, self.tts_engine)
+
+        top_controls_frame = ttk.Frame(main_frame)
+        top_controls_frame.pack(fill=tk.X, pady=(0, 10))
+
+        dropdown_frame = ttk.LabelFrame(top_controls_frame, text="Language & Voice", padding=(10, 5))
+        dropdown_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, anchor='center')
+
+        # Language and voice dropdown
+        self.language_dropdown = LanguageDropdown(dropdown_frame, self.tts_engine)
         self.language_dropdown.pack(fill=tk.X, pady=(0, 5))
         
-        self.voice_dropdown = VoiceDropdown(main_frame, self.tts_engine)
-        self.voice_dropdown.pack(fill=tk.X, pady=(0, 10))
+        self.voice_dropdown = VoiceDropdown(dropdown_frame, self.tts_engine)
+        self.voice_dropdown.pack(fill=tk.X)
         
+        self.language_dropdown.load_languages()
         self.language_dropdown.dropdown.bind("<<ComboboxSelected>>", self._update_voices)
+        
+        voice_control = ttk.LabelFrame(top_controls_frame, text="Voice Controls", padding=(10, 5))
+        voice_control.pack(side=tk.LEFT, fill=tk.BOTH, padx=(10, 0))
+
+        # Rate control
+        ttk.Label(voice_control, text="Rate:").pack(anchor=tk.W)
+        rate_inner_frame = ttk.Frame(voice_control)
+        rate_inner_frame.pack(fill=tk.X, pady=(0, 5))
+        self.rate_slider = Scale(rate_inner_frame, from_=0.25, to=4.0, value=1.0,
+                                 orient=tk.HORIZONTAL, length=100, bootstyle="success")
+        
+        self.rate_slider.pack(side=tk.LEFT, padx=(0, 5), fill=tk.X, expand=True)
+        self.rate_var = tk.StringVar(value="1.0")
+        self.rate_entry = ttk.Entry(rate_inner_frame, textvariable=self.rate_var, width=5)
+        self.rate_entry.pack(side=tk.LEFT)
+        
+        # Pitch control
+        ttk.Label(voice_control, text="Pitch:").pack(anchor=tk.W)
+        pitch_inner_frame = ttk.Frame(voice_control)
+        pitch_inner_frame.pack(fill=tk.X)
+        self.pitch_slider = Scale(pitch_inner_frame, from_=-20.0, to=20.0, value=0.0,
+                                  orient=tk.HORIZONTAL, length=100, bootstyle="warning")
+        
+        self.pitch_slider.pack(side=tk.LEFT, padx=(0, 5), fill=tk.X, expand=True)
+        self.pitch_var = tk.StringVar(value="0.0")
+        self.pitch_entry = ttk.Entry(pitch_inner_frame, textvariable=self.pitch_var, width=5)
+        self.pitch_entry.pack(side=tk.LEFT)
         
         control_frame = ttk.Frame(main_frame)
         control_frame.pack(fill=tk.X)
@@ -87,12 +125,24 @@ class TTSApp(tk.Tk):
         self.style = ttk.Style()
         self.style.configure("Accent.TButton", foreground='black', background='#0078d7')
         self.style.configure("Stop.TButton", foreground='black', background='#0078d7') 
-    
-        self.language_dropdown.load_languages()
         
         self.quota_panel = QuotaPanel(main_frame)
         self.quota_panel.pack(fill=tk.X, pady=10)
         self.update_quota()
+    
+        # Sync slider -> rate_entry
+        def update_rate_entry(event=None):
+            self.rate_var.set(f"{self.rate_slider.get():.2f}")
+        
+        self.rate_slider.bind("<B1-Motion>", update_rate_entry)
+        self.rate_slider.bind("<ButtonRelease-1>", update_rate_entry)
+
+        # Sync slider -> pitch_entry
+        def update_pitch_entry(event=None):
+            self.pitch_var.set(f"{self.pitch_slider.get():.1f}")
+        
+        self.pitch_slider.bind("<B1-Motion>", update_pitch_entry)
+        self.pitch_slider.bind("<ButtonRelease-1>", update_pitch_entry)
     
     def _update_voices(self, event=None):
         """Update available voices when language changes"""
@@ -114,7 +164,7 @@ class TTSApp(tk.Tk):
             self.logger.error(f"Failed to update quota: {str(e)}")
         
         self.after(300000, self.update_quota)
-            
+        
     def play_audio(self):
         """Generate and play audio directly"""
         self.status_var.set("Generating audio...")
@@ -142,16 +192,44 @@ class TTSApp(tk.Tk):
         audio_content = None
 
         try:
+            try:
+                speaking_rate = float(self.rate_var.get())
+                pitch = float(self.pitch_var.get())
+            except ValueError:
+                messagebox.showerror("Invalid Input", "Please enter numeric values for speaking rate and pitch.")
+                self.status_var.set("Error: Invalid input")
+                return
+            
+            if not (0.25 <= speaking_rate <= 4.0):
+                messagebox.showwarning(
+                    "Invalid Rate",
+                    "Speaking rate must be between 0.25 and 4.0.\n\nNote: Some voices only support rate between 0.25 and 2.0."
+                    )
+                self.status_var.set("Error: Invalid rate")
+                return
+            
+            if not (-20.0 <= pitch <= 20.0):
+                messagebox.showwarning(
+                    "Invalid Pitch", 
+                    "Pitch must be between -20 and 20.\n\nNote: Some voices do not support custom pitch values."
+                    )
+                self.status_var.set("Error: Invalid pitch")
+                return
+    
             if is_ssml:
                 audio_content = self.tts_engine.generate_to_memory(
                     text=text,
                     voice_data=voice_params,
+                    speaking_rate=speaking_rate,
+                    pitch=pitch,
                     is_ssml=True
                 )
             else:
                 audio_content = self.tts_engine.generate_to_memory(
                     text=text,
                     voice_data=voice_params,
+                    speaking_rate=speaking_rate,
+                    pitch=pitch,
                     is_ssml=False
                 )
 
