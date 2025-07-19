@@ -8,6 +8,7 @@ from tkinter import ttk, messagebox
 from ttkbootstrap import Style
 from ttkbootstrap.widgets import Scale, Progressbar
 from .components.TextEditor import TextEditor
+from .components.AudioProfileDropdown import AudioProfileDropdown
 from .components.VoiceDropdown import VoiceDropdown
 from .components.LanguageDropdown import LanguageDropdown
 from .components.QuotapPanel import QuotaPanel
@@ -35,12 +36,12 @@ class TTSApp(tk.Tk):
     def _set_platform_specifics(self):
         """Platform-specific adjustments"""
         if platform.system() == 'Darwin':
-            self.geometry("620x500") 
+            self.geometry("620x550") 
             if getattr(sys, 'frozen', False) and '.app' in sys.executable:
                 self.createcommand('tk::mac::ReopenApplication', self._on_reopen)
         else:
-            self.geometry("600x480")
-        self.minsize(400, 350)
+            self.geometry("600x530")
+        self.minsize(400, 400)
 
     def _init_audio(self):
         """Initialize audio with platform-appropriate settings"""
@@ -112,9 +113,12 @@ class TTSApp(tk.Tk):
         self.language_dropdown.dropdown.bind("<<ComboboxSelected>>", self._update_voices)
 
     def _setup_voice_controls(self, parent):
-        """Create and pack voice control: Rate and Pitch"""
-        voice_control = ttk.LabelFrame(parent, text="Voice Controls", padding=(10, 5))
-        voice_control.pack(side=tk.LEFT, fill=tk.BOTH, padx=(10, 0))
+        """Create and pack voice control: Rate, Pitch and Audio Profile"""
+        container = ttk.Frame(parent)
+        container.pack(side=tk.LEFT, fill=tk.BOTH, padx=(10, 0))
+        
+        voice_control = ttk.LabelFrame(container, text="Voice Controls", padding=(10, 5))
+        voice_control.pack(side=tk.TOP, fill=tk.BOTH)
 
         # Rate
         ttk.Label(voice_control, text="Rate:").pack(anchor=tk.W)
@@ -141,6 +145,13 @@ class TTSApp(tk.Tk):
         self.pitch_var = tk.StringVar(value="0.0")
         self.pitch_entry = ttk.Entry(pitch_frame, textvariable=self.pitch_var, width=5)
         self.pitch_entry.pack(side=tk.LEFT)
+        
+        # Audio Profile
+        audio_profile_frame = ttk.LabelFrame(container, text="Audio Profile", padding=(10, 5))
+        audio_profile_frame.pack(side=tk.TOP, fill=tk.BOTH, pady=(10, 0))
+
+        self.audio_profile_dropdown = AudioProfileDropdown(audio_profile_frame)
+        self.audio_profile_dropdown.pack(fill=tk.X)
     
     def _setup_control_buttons(self, parent):
         """Create and pack audio control buttons: Play, Stop, and SSML toggle.""" 
@@ -262,13 +273,18 @@ class TTSApp(tk.Tk):
                 return
 
             self.update_status_meter(50, "Generating...")
+            
+            selected_profile = self.audio_profile_dropdown.get_selected_profile()
+            effects_profile_id = [selected_profile] if selected_profile else None
+            
             if is_ssml:
                 audio_content = self.tts_engine.generate_to_memory(
                     text=text,
                     voice_data=voice_params,
                     speaking_rate=speaking_rate,
                     pitch=pitch,
-                    is_ssml=True
+                    is_ssml=True,
+                    effects_profile_id=effects_profile_id
                 )
             else:
                 audio_content = self.tts_engine.generate_to_memory(
@@ -276,7 +292,8 @@ class TTSApp(tk.Tk):
                     voice_data=voice_params,
                     speaking_rate=speaking_rate,
                     pitch=pitch,
-                    is_ssml=False
+                    is_ssml=False,
+                    effects_profile_id=effects_profile_id
                 )
 
             self.update_status_meter(80, "Generating...")

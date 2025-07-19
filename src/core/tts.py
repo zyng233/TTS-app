@@ -31,7 +31,8 @@ class TTSGenerator:
         audio_format: str = "MP3",
         speaking_rate: float = 1.0,
         pitch: float = 0.0,
-        is_ssml: bool = False
+        is_ssml: bool = False,
+        effects_profile_id: Optional[list[str]] = None
     ) -> bytes:
         return generate_audio_to_memory(
             client=self.client,
@@ -41,7 +42,8 @@ class TTSGenerator:
             audio_format=audio_format,
             speaking_rate=speaking_rate,
             pitch=pitch,
-            is_ssml=is_ssml
+            is_ssml=is_ssml,
+            effects_profile_id=effects_profile_id
         )
         
     def get_usage_stats(self):

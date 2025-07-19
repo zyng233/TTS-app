@@ -17,7 +17,8 @@ def generate_to_memory(
     audio_format: str = "MP3",
     speaking_rate: float = 1.0,
     pitch: float = 0.0,
-    is_ssml: bool = False
+    is_ssml: bool = False,
+    effects_profile_id: Optional[list[str]] = None
 ) -> bytes:
     """
     Generate speech and return audio binary data
@@ -30,6 +31,7 @@ def generate_to_memory(
         speaking_rate: Speed multiplier
         pitch: Pitch adjustment
         is_ssml: Whether input is SSML
+        effects_profile_id: List of audio effects profiles (e.g. ["headphone-class-device"])
     """
     voice_params = voice_data or {"name": voice_name or "en-US-Wavenet-D"}
     
@@ -46,7 +48,8 @@ def generate_to_memory(
         audio_config = texttospeech.AudioConfig(
             audio_encoding=AUDIO_FORMATS[audio_format.upper()],
             speaking_rate=speaking_rate,
-            pitch=pitch
+            pitch=pitch,
+            effects_profile_id=effects_profile_id or []
         )
 
         response = client.synthesize_speech(
