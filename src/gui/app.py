@@ -91,9 +91,12 @@ class TTSApp(tk.Tk):
         self.text_editor.pack(expand=True, fill=tk.BOTH, pady=(0, 10))
     
     def _setup_top_controls(self, parent):
-        """Create the top controls section including language and voice options."""
+        """Create the top controls section."""
         top_controls_frame = ttk.Frame(parent)
         top_controls_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        top_controls_frame.columnconfigure(0, weight=2)
+        top_controls_frame.columnconfigure(1, weight=1)
 
         self._setup_language_voice_dropdowns(top_controls_frame)
         self._setup_voice_controls(top_controls_frame)
@@ -101,7 +104,7 @@ class TTSApp(tk.Tk):
     def _setup_language_voice_dropdowns(self, parent):
         """Initialize and pack the language and voice selection dropdowns."""
         dropdown_frame = ttk.LabelFrame(parent, text="Language & Voice", padding=(10, 5))
-        dropdown_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, anchor='center')
+        dropdown_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
 
         self.language_dropdown = LanguageDropdown(dropdown_frame, self.tts_engine)
         self.language_dropdown.pack(fill=tk.X, pady=(0, 5))
@@ -115,10 +118,10 @@ class TTSApp(tk.Tk):
     def _setup_voice_controls(self, parent):
         """Create and pack voice control: Rate, Pitch and Audio Profile"""
         container = ttk.Frame(parent)
-        container.pack(side=tk.LEFT, fill=tk.BOTH, padx=(10, 0))
+        container.grid(row=0, column=1, sticky="nsew")
         
         voice_control = ttk.LabelFrame(container, text="Voice Controls", padding=(10, 5))
-        voice_control.pack(side=tk.TOP, fill=tk.BOTH)
+        voice_control.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 
         # Rate
         ttk.Label(voice_control, text="Rate:").pack(anchor=tk.W)
