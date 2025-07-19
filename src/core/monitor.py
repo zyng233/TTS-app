@@ -1,111 +1,136 @@
-from google.cloud import monitoring_v3
+from google.cloud import monitoring_v3, billing_v1
 from datetime import datetime
-from google.protobuf.timestamp_pb2 import Timestamp
+from collections import defaultdict
+from typing import Dict, Union
 
-FREE_TIER_LIMITS = {
-    'characters': 1000000,
-    'requests': 1000
-}
+FREE_TIER_CHAR_LIMIT = 1000000
 
-def get_real_time_quota(tts_generator):
-    """Fetch actual usage from Google Cloud Monitoring"""
-    monitor_client = monitoring_v3.MetricServiceClient(credentials=tts_generator.credentials)
-    project_id = tts_generator.credentials.project_id
-    project_name = f"projects/{project_id}"
-    print(f"[DEBUG] Using project: {project_id}")
+def get_billing_usage(tts_generator) -> Dict[str, int]:
+    """Fetch TTS usage from Billing Reports"""
+    client = billing_v1.CloudBillingClient(credentials=tts_generator.credentials)
     
+    billing_accounts = list(client.list_billing_accounts())
+    if not billing_accounts:
+        raise RuntimeError("No billing accounts found")
+    
+    service = billing_v1.services.ServiceUsageClient(credentials=tts_generator.credentials)
     now = datetime.now()
-    start_of_month = datetime(now.year, now.month, 1)
     
-    start_time_proto = Timestamp()
-    start_time_proto.FromDatetime(start_of_month)
-
-    end_time_proto = Timestamp()
-    end_time_proto.FromDatetime(now)
-
-    interval = monitoring_v3.TimeInterval(
-        start_time=start_time_proto,
-        end_time=end_time_proto
+    response = service.list_services(
+        parent=f"projects/{tts_generator.credentials.project_id}",
+        filter='state:ENABLED'
     )
-    
-    characters_metric = (
-        'metric.type="serviceruntime.googleapis.com/quota/allocation/usage" AND '
-        'metric.labels.quota_metric="speech.googleapis.com/default_character" AND '
-        'resource.labels.service="speech.googleapis.com"'
-    )
-    
-    requests_metric = (
-        'metric.type="serviceruntime.googleapis.com/quota/allocation/usage" AND '
-        'metric.labels.quota_metric="speech.googleapis.com/default_requests" AND '
-        'resource.labels.service="speech.googleapis.com"'
-    )
-    
-    try:
-        # Get characters usage
-        characters_response = monitor_client.list_time_series(
-            name=project_name,
-            filter=characters_metric,
-            interval=interval,
-            view=monitoring_v3.ListTimeSeriesRequest.TimeSeriesView.FULL
-        )
-        
-        # Get requests usage
-        requests_response = monitor_client.list_time_series(
-            name=project_name,
-            filter=requests_metric,
-            interval=interval,
-            view=monitoring_v3.ListTimeSeriesRequest.TimeSeriesView.FULL
-        )
-        
-        return {
-            "characters_used": extract_metric_value(characters_response),
-            "requests_used": extract_metric_value(requests_response),
-        }
-        
-    except Exception as e:
-        print(f"[DEBUG] Monitoring API error: {e}")
-        raise RuntimeError(f"Monitoring API error: {str(e)}")
 
-def extract_metric_value(response) -> int:
-    """Extract numeric value from monitoring API response"""
-    print(f"[DEBUG] Extrac metric value: {response}")
-    max_value = 0
-    for series in response:
-        for point in series.points:
-            if point.value.WhichOneof("value") == "int64_value":
-                max_value = max(max_value, int(point.value.int64_value))
-    return max_value
-
-def get_usage_stats(client):
-    """Get usage stats"""
+    usage_by_type = defaultdict(int)
+    voice_type_mapping = {
+        '9D01-5995-B545': 'Standard',
+        'FEBD-04B6-769B': 'WaveNet',
+        'F977-2280-6F1B': 'Chirp',
+        '84AB-48C0-F9C3': 'Studio'
+    }
+    
+    for item in response:
+        sku = item.name.split('/')[-1]
+        if sku in voice_type_mapping:
+            voice_type = voice_type_mapping[sku]
+            usage_by_type[voice_type] += int(item.usage.amount)
+    
+    return dict(usage_by_type)
+    
+def get_character_usage(client) -> Dict[str, Union[int, str]]:
+    """Get character usage from the most reliable available source"""
     if client is None:
         raise RuntimeError("TTS client is not initialized")
     
-    try:
-        cloud_data = get_real_time_quota(client)
-
+    monitoring_used = try_monitoring_api(client.credentials)
+    if monitoring_used is not None:
         return {
-            'characters_used': cloud_data['characters_used'],
-            'characters_remaining': max(0, FREE_TIER_LIMITS['characters'] - cloud_data['characters_used']),
-            'requests_used': cloud_data['requests_used'],
-            'requests_remaining': max(0, FREE_TIER_LIMITS['requests'] - cloud_data['requests_used']),
-            'month': datetime.now().strftime("%Y-%m"),
-            'source': 'google_cloud' 
+            'used': monitoring_used,
+            'source': 'monitoring'
+        }
+    
+    try:
+        detailed_usage = get_billing_usage(client)
+        total_used = sum(detailed_usage.values())
+        return {
+            'used': total_used,
+            'source': 'billing',
+            'detailed_usage': detailed_usage
         }
     except Exception as e:
+        print(f"[DEBUG] Billing API attempt failed: {e}")
         return {
-            'characters_used': 0,
-            'characters_remaining': FREE_TIER_LIMITS['characters'],
-            'requests_used': 0,
-            'requests_remaining': FREE_TIER_LIMITS['requests'],
-            'month': datetime.now().strftime("%Y-%m"),
+            'used': 0,
             'source': 'fallback'
         }
+
+def try_monitoring_api(credentials) -> Union[int, None]:
+    """Attempt to get usage from Monitoring API"""
+    try:
+        client = monitoring_v3.MetricServiceClient(credentials=credentials)
+        project_name = f"projects/{credentials.project_id}"
+        print(credentials.project_id)
+        now = datetime.now()
+        start_of_month = datetime(now.year, now.month, 1)
         
-def print_usage() -> None:
-    stats = get_usage_stats()
-    source_note = "(Google Cloud data)" if stats['source'] == 'google_cloud' else "(local estimate)"
+        interval = monitoring_v3.TimeInterval({
+            "start_time": {"seconds": int(start_of_month.timestamp())},
+            "end_time": {"seconds": int(now.timestamp())}
+        })
         
-    print(f"\n📊 Usage for {stats['month']} {source_note}:")
-    print(f"• Characters: {stats['characters_used']:,}/{FREE_TIER_LIMITS['characters']:,}")
-    print(f"• Requests: {stats['requests_used']:,}/{FREE_TIER_LIMITS['requests']:,}")
+        response = list(client.list_time_series(
+            name=project_name,
+            filter=(
+                'metric.type="serviceruntime.googleapis.com/quota/allocation/usage" AND '
+                'metric.labels.quota_metric="speech.googleapis.com/default_num_characters" AND '
+                'resource.labels.service="speech.googleapis.com"'
+            ),
+            interval=interval,
+            view=monitoring_v3.ListTimeSeriesRequest.TimeSeriesView.FULL
+        ))
+        
+        if response and response[0].points:
+            return int(response[0].points[-1].value.int64_value)
+    except Exception as e:
+        print(f"[DEBUG] Monitoring API attempt failed: {e}")
+    return None
+
+def get_character_stats(client):
+    """Get current character usage stats"""
+    if client is None:
+        raise RuntimeError("TTS client is not initialized")
+    
+    usage_data = get_character_usage(client)
+    
+    result = {
+        'used': usage_data['used'],
+        'remaining': max(0, FREE_TIER_CHAR_LIMIT - usage_data['used']),
+        'limit': FREE_TIER_CHAR_LIMIT,
+        'month': datetime.now().strftime("%Y-%m"),
+        'source': usage_data['source']
+    }
+    
+    if 'detailed_usage' in usage_data:
+        result['detailed_usage'] = usage_data['detailed_usage']
+    
+    return result
+       
+def print_character_usage(client=None) -> None:
+    """Print current character usage information"""
+    stats = get_character_stats(client)
+    
+    source_map = {
+        'monitoring': 'Google Cloud Monitoring',
+        'billing': 'Google Billing Reports',
+        'fallback': 'Fallback estimate'
+    }
+    
+    print(f"\n📊 Character Usage for {stats['month']}")
+    print(f"• Source: {source_map.get(stats['source'], stats['source'])}")
+    print(f"• Used: {stats['used']:,}/{stats['limit']:,} characters")
+    print(f"• Remaining: {stats['remaining']:,} characters")
+    
+    if 'detailed_usage' in stats:
+        print("\n🔍 Detailed Usage by Voice Type:")
+        for voice_type, count in stats['detailed_usage'].items():
+            print(f"  - {voice_type} voices: {count:,} characters")

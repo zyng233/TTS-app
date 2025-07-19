@@ -5,7 +5,7 @@ from .audio_config import generate_to_memory as generate_audio_to_memory
 from .auth import get_credentials_path, validate_credentials, initialize_client
 from .voice import get_available_languages as voice_get_available_languages
 from .voice import get_voices_for_language as voice_get_voices_for_language
-from .monitor import get_usage_stats as monitor_get_usage_stats
+from .monitor import get_character_stats as monitor_get_character_stats
 from .utils import setup_logger
 
 class TTSGenerator:
@@ -45,7 +45,7 @@ class TTSGenerator:
         )
         
     def get_usage_stats(self):
-        return monitor_get_usage_stats(self)
+        return monitor_get_character_stats(self)
        
 def main():
     print("=== Google Cloud TTS Generator ===")

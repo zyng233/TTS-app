@@ -11,7 +11,7 @@ class VoiceDropdown(ttk.Frame):
     
     def _setup_ui(self):
         self.details_var = tk.StringVar()
-        ttk.Label(self, text="Voice:").grid(row=0, column=0, sticky=tk.W)
+        ttk.Label(self, text="Voice: ").grid(row=0, column=0, sticky=tk.W)
         self.voice_var = tk.StringVar()
         self.dropdown = ttk.Combobox(
             self,
