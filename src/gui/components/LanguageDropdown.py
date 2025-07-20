@@ -6,6 +6,7 @@ class LanguageDropdown(ttk.Frame):
     def __init__(self, master, tts_generator=None, **kwargs):
         super().__init__(master, **kwargs)
         self.tts = tts_generator
+        self.current_service = "google"
         self.languages: List[Tuple[str, str]] = []
         self.name_to_code: Dict[str, str] = {} 
         self._setup_ui()
@@ -26,14 +27,15 @@ class LanguageDropdown(ttk.Frame):
         try:
             if not self.tts:
                 raise ValueError("TTS engine not initialized")
-                
-            self.languages = self.tts.get_available_languages(format="both")
-            self.name_to_code = {name: code for code, name in self.languages}
-            display_names = [name for (code, name) in self.languages]
-            self.dropdown['values'] = display_names
             
-            if display_names:
-                self.language_var.set(display_names[0])
+            if self.current_service == "google":
+                self.languages = self.tts.get_available_languages(format="both")
+                self.name_to_code = {name: code for code, name in self.languages}
+                display_names = [name for (code, name) in self.languages]
+                self.dropdown['values'] = display_names
+            
+                if display_names:
+                    self.language_var.set(display_names[0])
 
         except Exception as e:
             messagebox.showerror("Language Error", f"Failed to load languages:\n{str(e)}")

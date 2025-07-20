@@ -6,7 +6,7 @@ from google.api_core.exceptions import GoogleAPICallError
 
 class TTSGenerator:
     def __init__(self):
-        self.credentials_path = Path(__file__).parent.parent.parent / "credentials" / "credentials.json"
+        self.credentials_path = Path(__file__).parent.parent.parent / "credentials" / "google.json"
         self._validate_credentials()
 
     def _validate_credentials(self):

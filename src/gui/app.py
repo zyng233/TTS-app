@@ -12,7 +12,7 @@ from .components.AudioProfileDropdown import AudioProfileDropdown
 from .components.VoiceDropdown import VoiceDropdown
 from .components.LanguageDropdown import LanguageDropdown
 from .components.QuotapPanel import QuotaPanel
-from core.tts import TTSGenerator
+from core.tts.factory import TTSFactory, TTSService
 from core.utils import setup_logger
 
 class TTSApp(tk.Tk):
@@ -25,7 +25,10 @@ class TTSApp(tk.Tk):
         self.logger = setup_logger()
                 
         try:
-            self.tts_engine = TTSGenerator(update_callback=lambda stats: self.update_quota(stats))
+            self.tts_engine = TTSFactory.create(
+                TTSService.GOOGLE,
+                update_callback=lambda stats: self.update_quota(stats)
+            )
         except Exception as e:
             messagebox.showerror("Initialization Error", f"Failed to initialize TTS engine: {str(e)}")
             self.destroy()
@@ -223,7 +226,8 @@ class TTSApp(tk.Tk):
             self.quota_panel.update_stats({
                 'used': stats['used'],
                 'remaining': stats['remaining'],
-                'source': stats['source'] 
+                'source': stats['source'],
+                'service': 'google'
             })
         except Exception as e:
             self.logger.error(f"Failed to update quota: {str(e)}")

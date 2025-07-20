@@ -2,28 +2,42 @@ import sys
 import re
 from pathlib import Path
 from typing import Optional
-from .audio_config import generate_to_memory as generate_audio_to_memory
-from .auth import get_credentials_path, validate_credentials, initialize_client
-from .voice import get_available_languages as voice_get_available_languages
-from .voice import get_voices_for_language as voice_get_voices_for_language
-from .monitor import get_character_stats as monitor_get_character_stats
-from .monitor import update_usage
-from .utils import setup_logger
+from .base_tts import BaseTTS
+from ..auth import AuthManager, ServiceType
+from ..audio_config import generate_to_memory as generate_audio_to_memory
+from ..voice import get_available_languages as voice_get_available_languages
+from ..voice import get_voices_for_language as voice_get_voices_for_language
+from ..monitor import get_character_stats as monitor_get_character_stats
+from ..monitor import update_usage
+from ..utils import setup_logger
 
-class TTSGenerator:
+class GoogleCloudTTS(BaseTTS):
     def __init__(self, credentials_path: Optional[Path] = None, update_callback=None):
-        self.credentials_path = credentials_path or get_credentials_path()
-        validate_credentials(self.credentials_path)
-        self.client, self.credentials = initialize_client(self.credentials_path)
-        if not self.client:
-            raise RuntimeError("Failed to initialize TTS client. Check credentials.")
+        self.auth_manager = AuthManager()  
+        self.service_type = ServiceType.GOOGLE
         self.logger = setup_logger()
-        self.update_callback = update_callback 
+        self.update_callback = update_callback
+        
+        try:
+            self.credentials_path = credentials_path or self.auth_manager.get_credentials_path(self.service_type)
+            
+            self.auth_manager.validate_credentials(self.service_type, self.credentials_path)
+            self.client, self.credentials = self.auth_manager.initialize_client(
+                self.service_type, 
+                self.credentials_path
+            )
+            
+            if not self.client:
+                raise RuntimeError("Failed to initialize TTS client. Check credentials.")
+                
+        except Exception as e:
+            self.logger.error(f"Initialization failed: {str(e)}")
+            raise RuntimeError(f"Could not initialize Google Cloud TTS: {str(e)}")
     
     def get_available_languages(self, format: str = "both"):
         return voice_get_available_languages(self.client, format=format)
     
-    def get_voices_for_language(self, language_code: str):
+    def get_available_voices(self, language_code: str):
         return voice_get_voices_for_language(self.client, language_code)
     
     def generate_to_memory(
@@ -78,7 +92,7 @@ class TTSGenerator:
 def main():
     print("=== Google Cloud TTS Generator ===")
     try:
-        tts = TTSGenerator()
+        tts = GoogleCloudTTS()
         return 0
     except Exception as e:
         print(f"\n❌ Error: {str(e)}", file=sys.stderr)

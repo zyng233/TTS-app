@@ -6,7 +6,7 @@ FREE_TIER_CHAR_LIMIT = 1000000
 
 class QuotaPanel(ttk.LabelFrame):
     def __init__(self, master, **kwargs):
-        super().__init__(master, text="Usage Quota (Reference)", **kwargs)
+        super().__init__(master, text="Estimated Usage Quota", **kwargs)
         self._setup_ui()
         
     def _setup_ui(self):
