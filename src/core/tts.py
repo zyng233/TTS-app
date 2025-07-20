@@ -1,4 +1,5 @@
 import sys
+import re
 from pathlib import Path
 from typing import Optional
 from .audio_config import generate_to_memory as generate_audio_to_memory
@@ -36,6 +37,8 @@ class TTSGenerator:
         is_ssml: bool = False,
         effects_profile_id: Optional[list[str]] = None
     ) -> bytes:
+        char_count = self.count_ssml_characters(text) if is_ssml else len(text)
+        
         audio_content = generate_audio_to_memory(
             client=self.client,
             text=text,
@@ -48,7 +51,7 @@ class TTSGenerator:
             effects_profile_id=effects_profile_id
         )
         try:
-            update_usage(len(text))
+            update_usage(char_count)
             if self.update_callback:
                 self.update_callback(self.get_usage_stats())
         except Exception as e:
@@ -58,6 +61,19 @@ class TTSGenerator:
         
     def get_usage_stats(self):
         return monitor_get_character_stats(self)
+    
+    def count_ssml_characters(self, text: str) -> int:
+        """
+        Count characters in SSML text, ignoring all XML tags and attributes.
+        Only counts text that will actually be spoken.
+        """
+        tag_pattern = re.compile(r'<[^>]+>')
+        clean_text = tag_pattern.sub('', text)
+        
+        clean_text = re.sub(r'&[a-z]+;', 'X', clean_text)
+        
+        clean_text = ' '.join(clean_text.split())
+        return len(clean_text)
        
 def main():
     print("=== Google Cloud TTS Generator ===")
