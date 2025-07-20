@@ -25,13 +25,14 @@ class TTSApp(tk.Tk):
         self.logger = setup_logger()
                 
         try:
-            self.tts_engine = TTSGenerator()
+            self.tts_engine = TTSGenerator(update_callback=lambda stats: self.update_quota(stats))
         except Exception as e:
             messagebox.showerror("Initialization Error", f"Failed to initialize TTS engine: {str(e)}")
             self.destroy()
             return
         
         self._setup_ui()
+        self.update_quota()
 
     def _set_platform_specifics(self):
         """Platform-specific adjustments"""
@@ -215,10 +216,10 @@ class TTSApp(tk.Tk):
         if selected_language:
             self.voice_dropdown.load_voices_for_language(selected_language)
     
-    def update_quota(self):
+    def update_quota(self, stats=None):
         """Update quota display"""    
         try:
-            stats = self.tts_engine.get_usage_stats()
+            stats = stats or self.tts_engine.get_usage_stats()
             self.quota_panel.update_stats({
                 'used': stats['used'],
                 'remaining': stats['remaining'],
@@ -237,11 +238,15 @@ class TTSApp(tk.Tk):
         text = self.text_editor.get_text()
         if not text:
             messagebox.showwarning("Input Error", "Please enter some text to convert to speech.")
+            self.update_status_meter(0, "Input Error")
+            self.update()
             return
             
         voice_data = self.voice_dropdown.get_selected_voice()
         if not voice_data:
             messagebox.showwarning("Voice Error", "Please select a voice.")
+            self.update_status_meter(0, "Input Error")
+            self.update()
             return
         
         voice_params = {
@@ -253,6 +258,7 @@ class TTSApp(tk.Tk):
         is_ssml = self.ssml_var.get()
         audio_content = None
         self.update_status_meter(30, "Generating...")
+        self.update()
 
         try:
             try:
@@ -267,6 +273,8 @@ class TTSApp(tk.Tk):
                     "Invalid Rate",
                     "Speaking rate must be between 0.25 and 4.0.\n\nNote: Some voices only support rate between 0.25 and 2.0."
                     )
+                self.update_status_meter(0, "Invalid Rate")
+                self.update()
                 return
             
             if not (-20.0 <= pitch <= 20.0):
@@ -274,9 +282,12 @@ class TTSApp(tk.Tk):
                     "Invalid Pitch", 
                     "Pitch must be between -20 and 20.\n\nNote: Some voices do not support custom pitch values."
                     )
+                self.update_status_meter(0, "Invalid Pitch")
+                self.update()
                 return
 
             self.update_status_meter(50, "Generating...")
+            self.update()
             
             selected_profile = self.audio_profile_dropdown.get_selected_profile()
             effects_profile_id = [selected_profile] if selected_profile else None
@@ -301,6 +312,7 @@ class TTSApp(tk.Tk):
                 )
 
             self.update_status_meter(80, "Generating...")
+            self.update()
             self._play_audio_content(audio_content)
 
         except RuntimeError as e:
@@ -308,8 +320,12 @@ class TTSApp(tk.Tk):
                 self._handle_ssml_fallback()
             else:
                 messagebox.showerror("Generation Error", f"Failed to generate speech:\n{str(e)}")
+                self.update_status_meter(0, "Generation Error")
+                self.update()
         except Exception as e:
             messagebox.showerror("Generation Error", f"Failed to generate speech:\n{str(e)}")
+            self.update_status_meter(0, "Generation Error")
+            self.update()
         
     def _play_audio_content(self, audio_content):
         """Play audio from binary content"""
@@ -321,6 +337,7 @@ class TTSApp(tk.Tk):
             pygame.mixer.music.play()
             self.is_playing = True
             self.update_status_meter(100, "Playing audio...")
+            self.update()
             self.after(100, self._check_playback_status)
 
         except Exception as e:
@@ -335,6 +352,7 @@ class TTSApp(tk.Tk):
         else:
             self.is_playing = False
             self.update_status_meter(0, "Ready")
+            self.update()
 
     def stop_audio(self):
         """Stop currently playing audio"""
@@ -343,7 +361,9 @@ class TTSApp(tk.Tk):
                 pygame.mixer.music.stop()
                 self.is_playing = False
                 self.update_status_meter(100, "Playback stopped.")
+                self.update()
                 self.after(3000, lambda: self.update_status_meter(0, "Ready"))
+                self.update()
         except Exception as e:
             messagebox.showerror("Stop Error", f"Could not stop audio: {str(e)}")
 
@@ -352,6 +372,7 @@ class TTSApp(tk.Tk):
         self.update_status_meter(0, "Voice doesn't support SSML - using plain text")
         self.update_idletasks()
         self.after(3000, lambda: self.update_status_meter(0, "Ready"))
+        self.update()
 
     def _on_reopen(self):
         """Handle macOS app reopen event (for App Store)"""

@@ -10,13 +10,14 @@ from .monitor import update_usage
 from .utils import setup_logger
 
 class TTSGenerator:
-    def __init__(self, credentials_path: Optional[Path] = None):
+    def __init__(self, credentials_path: Optional[Path] = None, update_callback=None):
         self.credentials_path = credentials_path or get_credentials_path()
         validate_credentials(self.credentials_path)
         self.client, self.credentials = initialize_client(self.credentials_path)
         if not self.client:
             raise RuntimeError("Failed to initialize TTS client. Check credentials.")
         self.logger = setup_logger()
+        self.update_callback = update_callback 
     
     def get_available_languages(self, format: str = "both"):
         return voice_get_available_languages(self.client, format=format)
@@ -48,6 +49,8 @@ class TTSGenerator:
         )
         try:
             update_usage(len(text))
+            if self.update_callback:
+                self.update_callback(self.get_usage_stats())
         except Exception as e:
             self.logger.error(f"Failed to update usage: {e}")
         
