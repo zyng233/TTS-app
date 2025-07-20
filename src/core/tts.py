@@ -6,6 +6,7 @@ from .auth import get_credentials_path, validate_credentials, initialize_client
 from .voice import get_available_languages as voice_get_available_languages
 from .voice import get_voices_for_language as voice_get_voices_for_language
 from .monitor import get_character_stats as monitor_get_character_stats
+from .monitor import update_usage
 from .utils import setup_logger
 
 class TTSGenerator:
@@ -34,7 +35,7 @@ class TTSGenerator:
         is_ssml: bool = False,
         effects_profile_id: Optional[list[str]] = None
     ) -> bytes:
-        return generate_audio_to_memory(
+        audio_content = generate_audio_to_memory(
             client=self.client,
             text=text,
             voice_name=voice_name,
@@ -45,6 +46,12 @@ class TTSGenerator:
             is_ssml=is_ssml,
             effects_profile_id=effects_profile_id
         )
+        try:
+            update_usage(len(text))
+        except Exception as e:
+            self.logger.error(f"Failed to update usage: {e}")
+        
+        return audio_content
         
     def get_usage_stats(self):
         return monitor_get_character_stats(self)

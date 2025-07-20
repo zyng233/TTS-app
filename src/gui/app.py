@@ -220,8 +220,9 @@ class TTSApp(tk.Tk):
         try:
             stats = self.tts_engine.get_usage_stats()
             self.quota_panel.update_stats({
-                'characters_used': stats['characters_used'],
-                'characters_remaining': stats['characters_remaining']
+                'used': stats['used'],
+                'remaining': stats['remaining'],
+                'source': stats['source'] 
             })
         except Exception as e:
             self.logger.error(f"Failed to update quota: {str(e)}")
