@@ -10,7 +10,8 @@ class VoiceDropdown(ttk.Frame):
         self._setup_ui()
     
     def _setup_ui(self):
-        ttk.Label(self, text="Voice:").grid(row=0, column=0, sticky=tk.W)
+        self.details_var = tk.StringVar()
+        ttk.Label(self, text="Voice: ").grid(row=0, column=0, sticky=tk.W)
         self.voice_var = tk.StringVar()
         self.dropdown = ttk.Combobox(
             self,
@@ -21,7 +22,6 @@ class VoiceDropdown(ttk.Frame):
         self.dropdown.grid(row=0, column=1, sticky=tk.EW)
         self.dropdown.bind("<<ComboboxSelected>>", self._update_details)
         
-        self.details_var = tk.StringVar(value="Select a voice")
         ttk.Label(self, textvariable=self.details_var, wraplength=300).grid(
             row=1, column=0, columnspan=2, sticky=tk.W, pady=(5, 0))
         
@@ -37,7 +37,7 @@ class VoiceDropdown(ttk.Frame):
             self.details_var.set("Loading voices...")
             self.update_idletasks()
             
-            self.voices = self.tts.get_voices_for_language(language_code)
+            self.voices = self.tts.get_available_voices(language_code)
             voice_names = [v['name'] for v in self.voices]
             
             if not voice_names:
@@ -66,10 +66,14 @@ class VoiceDropdown(ttk.Frame):
 
     def get_selected_voice(self) -> Optional[Dict]:
         """Get complete details of the currently selected voice."""
-        selected = self.voice_var.get()
-        if not selected or not self.voices:
+        if not self.voices or not self.voice_var.get():
             return None
-        return next((v for v in self.voices if v['name'] == selected), None)
+        
+        selected = self.voice_var.get()
+        try:
+            return next(v for v in self.voices if v['name'] == selected)
+        except StopIteration:
+            return None
 
     def clear_voices(self):
         """Reset the voice dropdown"""
