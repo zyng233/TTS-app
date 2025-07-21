@@ -123,6 +123,7 @@ A cross-platform app for converting text to speech using cloud TTS services.
 
 - Click ▶ Play to start
 - Click ⏹ Stop to cancel
+- Click ⏯ Pause/Resume to toggle playback
 - Quota usage(estimated) updates automatically
 
 > ## ⚠️ **Note**

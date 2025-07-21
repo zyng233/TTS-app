@@ -82,10 +82,10 @@ Type or paste your text into the main text box:
 
 ### 3. Control Playback
 
-| Button      | Action                     |
-| ----------- | -------------------------- |
-| ▶️ **Play** | Generates and plays audio  |
-| ⏹ **Stop**  | Immediately stops playback |
+| Button       | Action                     |
+| ------------ | -------------------------- |
+| ▶️ **Play**  | Generates and plays audio  |
+| ⏹ **Cancel** | Immediately stops playback |
 
 ### 4. Advanced Options
 

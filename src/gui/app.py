@@ -21,6 +21,7 @@ class TTSApp(tk.Tk):
         self.title("Text-to-Speech Player")
         self._set_platform_specifics()
         self.is_playing = False
+        self.is_paused = False
         self._init_audio()
         self.logger = setup_logger()
                 
@@ -161,18 +162,28 @@ class TTSApp(tk.Tk):
         self.audio_profile_dropdown.pack(fill=tk.X)
     
     def _setup_control_buttons(self, parent):
-        """Create and pack audio control buttons: Play, Stop, and SSML toggle.""" 
+        """Create and pack audio control buttons""" 
         control_frame = ttk.Frame(parent)
         control_frame.pack(fill=tk.X)
 
+        # SSML Toggle
         self.ssml_var = tk.BooleanVar(value=False)
         ttk.Checkbutton(control_frame, text="SSML", variable=self.ssml_var).pack(side=tk.LEFT)
 
-        ttk.Button(control_frame, text="Stop", command=self.stop_audio,
-                style="dark.TButton").pack(side=tk.RIGHT, padx=(5, 0), pady=(0, 5))
-
-        ttk.Button(control_frame, text="Play", command=self.play_audio,
-                style="accent.TButton").pack(side=tk.RIGHT, pady=(0, 5))
+        # Control Buttons
+        button_frame = ttk.Frame(control_frame)
+        button_frame.pack(side=tk.RIGHT)
+        
+        ttk.Button(button_frame, text="⏹ Stop", command=self.stop_audio,
+                style="danger.TButton").pack(side=tk.RIGHT, padx=(0, 5))
+    
+        self.pause_button = ttk.Button(button_frame, text="⏯ Pause", 
+                                    command=self.toggle_pause,
+                                    style="warning.TButton")
+        self.pause_button.pack(side=tk.RIGHT, padx=5)  
+        
+        ttk.Button(button_frame, text="▶ Play", command=self.play_audio,
+              style="success.TButton").pack(side=tk.RIGHT, padx=(5, 0))
     
     def _setup_status_bar(self, parent):
         """Create a status bar and quota panel at the bottom."""
@@ -207,11 +218,16 @@ class TTSApp(tk.Tk):
             self.pitch_var.set(f"{self.pitch_slider.get():.1f}")
         self.pitch_slider.bind("<B1-Motion>", update_pitch_entry)
         self.pitch_slider.bind("<ButtonRelease-1>", update_pitch_entry)
+        
+        self.bind("<space>", lambda e: self.toggle_pause())
+        self.bind("<s>", lambda e: self.stop_audio())
+        self.bind("<p>", lambda e: self.play_audio())
 
     def update_status_meter(self, progress, status_text):
         self.progress_var.set(progress)
         self.status_label.config(text=status_text)
         self.update_idletasks()
+        self.update()
     
     def _update_voices(self, event=None):
         """Update available voices when language changes"""       
@@ -236,21 +252,19 @@ class TTSApp(tk.Tk):
         
     def play_audio(self):
         """Generate and play audio directly"""
+        self.stop_audio()
         self.update_status_meter(10, "Generating...")
-        self.update()
 
         text = self.text_editor.get_text()
         if not text:
             messagebox.showwarning("Input Error", "Please enter some text to convert to speech.")
             self.update_status_meter(0, "Input Error")
-            self.update()
             return
             
         voice_data = self.voice_dropdown.get_selected_voice()
         if not voice_data:
             messagebox.showwarning("Voice Error", "Please select a voice.")
             self.update_status_meter(0, "Input Error")
-            self.update()
             return
         
         voice_params = {
@@ -262,7 +276,6 @@ class TTSApp(tk.Tk):
         is_ssml = self.ssml_var.get()
         audio_content = None
         self.update_status_meter(30, "Generating...")
-        self.update()
 
         try:
             try:
@@ -278,7 +291,6 @@ class TTSApp(tk.Tk):
                     "Speaking rate must be between 0.25 and 4.0.\n\nNote: Some voices only support rate between 0.25 and 2.0."
                     )
                 self.update_status_meter(0, "Invalid Rate")
-                self.update()
                 return
             
             if not (-20.0 <= pitch <= 20.0):
@@ -287,11 +299,9 @@ class TTSApp(tk.Tk):
                     "Pitch must be between -20 and 20.\n\nNote: Some voices do not support custom pitch values."
                     )
                 self.update_status_meter(0, "Invalid Pitch")
-                self.update()
                 return
 
             self.update_status_meter(50, "Generating...")
-            self.update()
             
             selected_profile = self.audio_profile_dropdown.get_selected_profile()
             effects_profile_id = [selected_profile] if selected_profile else None
@@ -316,7 +326,6 @@ class TTSApp(tk.Tk):
                 )
 
             self.update_status_meter(80, "Generating...")
-            self.update()
             self._play_audio_content(audio_content)
 
         except RuntimeError as e:
@@ -325,11 +334,9 @@ class TTSApp(tk.Tk):
             else:
                 messagebox.showerror("Generation Error", f"Failed to generate speech:\n{str(e)}")
                 self.update_status_meter(0, "Generation Error")
-                self.update()
         except Exception as e:
             messagebox.showerror("Generation Error", f"Failed to generate speech:\n{str(e)}")
             self.update_status_meter(0, "Generation Error")
-            self.update()
         
     def _play_audio_content(self, audio_content):
         """Play audio from binary content"""
@@ -340,34 +347,54 @@ class TTSApp(tk.Tk):
             pygame.mixer.music.load(audio_file)
             pygame.mixer.music.play()
             self.is_playing = True
+            self.is_paused = False
+            self.pause_button.config(text="Pause")
             self.update_status_meter(100, "Playing audio...")
-            self.update()
             self.after(100, self._check_playback_status)
 
         except Exception as e:
             self.is_playing = False
             messagebox.showerror("Playback Error", f"Could not play audio: {str(e)}")
+            self.update_status_meter(0, "Playback Error")
             raise
     
+    def toggle_pause(self):
+        """Toggle between pause and resume"""
+        if not self.is_playing:
+            messagebox.showinfo("Info", "No audio is currently playing")
+            return
+    
+        if self.is_paused:
+            pygame.mixer.music.unpause()
+            self.is_paused = False
+            self.pause_button.config(text="Pause")
+            self.update_status_meter(100, "Playing audio...")
+        else:
+            pygame.mixer.music.pause()
+            self.is_paused = True
+            self.pause_button.config(text="Resume")
+            self.update_status_meter(50, "Paused")
+                
     def _check_playback_status(self):
         """Check if audio is still playing"""
+        if self.is_paused:
+            return
+
         if pygame.mixer.music.get_busy():
             self.after(100, self._check_playback_status)
         else:
             self.is_playing = False
             self.update_status_meter(0, "Ready")
-            self.update()
 
     def stop_audio(self):
         """Stop currently playing audio"""
         try:
-            if pygame.mixer.music.get_busy():
-                pygame.mixer.music.stop()
-                self.is_playing = False
-                self.update_status_meter(100, "Playback stopped.")
-                self.update()
-                self.after(3000, lambda: self.update_status_meter(0, "Ready"))
-                self.update()
+            pygame.mixer.music.stop()
+            self.is_playing = False
+            self.is_paused = False
+            self.pause_button.config(text="Pause")
+            self.update_status_meter(100, "Playback stopped.")
+            self.after(3000, lambda: self.update_status_meter(0, "Ready"))
         except Exception as e:
             messagebox.showerror("Stop Error", f"Could not stop audio: {str(e)}")
 
@@ -376,7 +403,6 @@ class TTSApp(tk.Tk):
         self.update_status_meter(0, "Voice doesn't support SSML - using plain text")
         self.update_idletasks()
         self.after(3000, lambda: self.update_status_meter(0, "Ready"))
-        self.update()
 
     def _on_reopen(self):
         """Handle macOS app reopen event (for App Store)"""
