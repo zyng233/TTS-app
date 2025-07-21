@@ -4,11 +4,12 @@ import sys
 from pathlib import Path
 import pygame
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, filedialog
 from ttkbootstrap import Style
 from ttkbootstrap.widgets import Scale, Progressbar
 from .components.TextEditor import TextEditor
 from .components.AudioProfileDropdown import AudioProfileDropdown
+from .components.AudioFormatDropdown import AudioFormatDropdown
 from .components.VoiceDropdown import VoiceDropdown
 from .components.LanguageDropdown import LanguageDropdown
 from .components.QuotapPanel import QuotaPanel
@@ -103,13 +104,22 @@ class TTSApp(tk.Tk):
         top_controls_frame.columnconfigure(0, weight=2)
         top_controls_frame.columnconfigure(1, weight=1)
 
-        self._setup_language_voice_dropdowns(top_controls_frame)
-        self._setup_voice_controls(top_controls_frame)
+        left_frame = ttk.Frame(top_controls_frame)
+        left_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
+        
+        right_frame = ttk.Frame(top_controls_frame)
+        right_frame.grid(row=0, column=1, sticky="nsew")
+
+        self._setup_language_voice_dropdowns(left_frame)
+        self._setup_audio_profile(left_frame)  
+        
+        self._setup_voice_controls(right_frame)
+        self._setup_format_selector(right_frame) 
     
     def _setup_language_voice_dropdowns(self, parent):
         """Initialize and pack the language and voice selection dropdowns."""
         dropdown_frame = ttk.LabelFrame(parent, text="Language & Voice", padding=(10, 5))
-        dropdown_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
+        dropdown_frame.pack(fill=tk.X, pady=(0, 5)) 
 
         self.language_dropdown = LanguageDropdown(dropdown_frame, self.tts_engine)
         self.language_dropdown.pack(fill=tk.X, pady=(0, 5))
@@ -120,10 +130,31 @@ class TTSApp(tk.Tk):
         self.language_dropdown.load_languages()
         self.language_dropdown.dropdown.bind("<<ComboboxSelected>>", self._update_voices)
 
+    def _setup_format_selector(self, parent):
+        """Setup audio format selection below language/voice dropdowns"""
+        format_frame = ttk.LabelFrame(parent, text="Output Format", padding=(10, 5))
+        format_frame.pack(fill=tk.X)
+        
+        control_frame = ttk.Frame(format_frame)
+        control_frame.pack(fill=tk.X)
+        
+        self.format_dropdown = AudioFormatDropdown(control_frame)
+        self.format_dropdown.pack(side=tk.LEFT, padx=(0, 5))
+        
+        self.download_button = ttk.Button(
+            control_frame,
+            text="↓ Download Audio", 
+            command=self._on_download_clicked,
+            style="info.TButton",
+            state=tk.DISABLED 
+        )
+        self.download_button.pack(side=tk.RIGHT, padx=(0, 5))
+        self.current_audio_content = None
+    
     def _setup_voice_controls(self, parent):
-        """Create and pack voice control: Rate, Pitch and Audio Profile"""
+        """Create and pack voice control"""
         container = ttk.Frame(parent)
-        container.grid(row=0, column=1, sticky="nsew")
+        container.pack(fill=tk.BOTH, expand=True)
         
         voice_control = ttk.LabelFrame(container, text="Voice Controls", padding=(10, 5))
         voice_control.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
@@ -154,10 +185,11 @@ class TTSApp(tk.Tk):
         self.pitch_entry = ttk.Entry(pitch_frame, textvariable=self.pitch_var, width=5)
         self.pitch_entry.pack(side=tk.LEFT)
         
-        # Audio Profile
-        audio_profile_frame = ttk.LabelFrame(container, text="Audio Profile", padding=(10, 5))
-        audio_profile_frame.pack(side=tk.TOP, fill=tk.BOTH, pady=(10, 0))
-
+    def _setup_audio_profile(self, parent):
+        """Audio Profile dropdown moved to left column"""
+        audio_profile_frame = ttk.LabelFrame(parent, text="Audio Profile", padding=(10, 5))
+        audio_profile_frame.pack(fill=tk.X, pady=(10, 0))
+        
         self.audio_profile_dropdown = AudioProfileDropdown(audio_profile_frame)
         self.audio_profile_dropdown.pack(fill=tk.X)
     
@@ -305,25 +337,17 @@ class TTSApp(tk.Tk):
             
             selected_profile = self.audio_profile_dropdown.get_selected_profile()
             effects_profile_id = [selected_profile] if selected_profile else None
+            self.current_audio_format = "MP3"
             
-            if is_ssml:
-                audio_content = self.tts_engine.generate_to_memory(
-                    text=text,
-                    voice_data=voice_params,
-                    speaking_rate=speaking_rate,
-                    pitch=pitch,
-                    is_ssml=True,
-                    effects_profile_id=effects_profile_id
-                )
-            else:
-                audio_content = self.tts_engine.generate_to_memory(
-                    text=text,
-                    voice_data=voice_params,
-                    speaking_rate=speaking_rate,
-                    pitch=pitch,
-                    is_ssml=False,
-                    effects_profile_id=effects_profile_id
-                )
+            audio_content = self.tts_engine.generate_to_memory(
+                text=text,
+                voice_data=voice_params,
+                audio_format=self.current_audio_format,
+                speaking_rate=speaking_rate,
+                pitch=pitch,
+                is_ssml=is_ssml,
+                effects_profile_id=effects_profile_id
+            )
 
             self.update_status_meter(80, "Generating...")
             self._play_audio_content(audio_content)
@@ -340,6 +364,8 @@ class TTSApp(tk.Tk):
         
     def _play_audio_content(self, audio_content):
         """Play audio from binary content"""
+        self.current_audio_content = audio_content
+        self.download_button.config(state=tk.NORMAL)
         try:
             audio_file = io.BytesIO(audio_content)
             
@@ -397,6 +423,38 @@ class TTSApp(tk.Tk):
             self.after(3000, lambda: self.update_status_meter(0, "Ready"))
         except Exception as e:
             messagebox.showerror("Stop Error", f"Could not stop audio: {str(e)}")
+    
+    def _on_download_clicked(self):
+        """Wrapper method for download button click"""
+        if hasattr(self, 'format_dropdown'):
+            selected_format = self.format_dropdown.get_selected_format()
+            self.download_audio(selected_format)
+        else:
+            messagebox.showerror("Error", "Format selection not available")
+           
+    def download_audio(self, selected_format):
+        """Save the generated audio to a file with format selection"""
+        if not self.current_audio_content:
+            messagebox.showwarning("No Audio", "No audio has been generated yet")
+            return
+        
+        text_sample = self.text_editor.get_text()[:20].strip().replace(" ", "_")
+        default_name = f"tts_output_{text_sample or 'audio'}.{selected_format}"
+        
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=f".{selected_format}",
+            filetypes=[(f"{selected_format.upper()} files", f"*.{selected_format}"), ("All files", "*.*")],
+            initialfile=default_name,
+            title="Save Audio File"
+        )
+        
+        if file_path:
+            try:
+                with open(file_path, "wb") as f:
+                    f.write(self.current_audio_content)
+                messagebox.showinfo("Success", f"Audio saved to:\n{file_path}")
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to save file:\n{str(e)}")
 
     def _handle_ssml_fallback(self):
         """Handle SSML fallback scenario"""

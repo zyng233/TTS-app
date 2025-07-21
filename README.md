@@ -13,6 +13,7 @@ A cross-platform app for converting text to speech using cloud TTS services.
 - **Usage Monitoring**: Tracks character usage against service quotas
 - **Optimized Audio Profiles**: Device-specific sound optimization
 - **Voice Customization**: Adjustable speaking rate and pitch control
+- **Audio Download**: Save generated speech audio in multiple formats
 
 ## 📋 Prerequisites
 
@@ -42,7 +43,7 @@ A cross-platform app for converting text to speech using cloud TTS services.
      ./TTS_App_Linux
      ```
 
-## Detailed Setup
+## ⚙️ Detailed Setup
 
 ### 🔑 Credentials Setup (Google Cloud TTS)
 
@@ -107,24 +108,34 @@ A cross-platform app for converting text to speech using cloud TTS services.
 
 ### 2. Select Language & Voice
 
-1. Language: Dropdown list (e.g. "English (US)")
-2. Voice: Choose from available options (e.g. "Wavenet-D")
+![Language and Voice Panel Screenshot](/images/language_voice_interface.png)
+
+1. Language: Dropdown list (e.g. "Afrikaans")
+
+![Language Selection Screenshot](/images/language_selection.png)
+
+2. Voice: Choose from available options (e.g. "en-AU-Chirp_HD-D")
+
+![Voice Selection Screenshot](/images/voice_selection.png)
+
 3. SSML Mode: Checkbox to enable/disable
 
 ### 3. Adjust Audio Preferences
 
-| Control           | Function                    |
-| ----------------- | --------------------------- |
-| **Speed Slider**  | 0.25x (slow) to 4.0x (fast) |
-| **Pitch Slider**  | -20 (low) to +20 (high)     |
-| **Audio Profile** | Device optimization         |
+| Control           | Function                          |
+| ----------------- | --------------------------------- |
+| **Speed Slider**  | 0.25x (slow) to 4.0x (fast)       |
+| **Pitch Slider**  | -20 (low) to +20 (high)           |
+| **Audio Profile** | Device optimization               |
+| **Audio Format**  | MP3, WAV, or OGG output selection |
 
 ### 4. Generate & Play
 
 - Click ▶ Play to start
 - Click ⏹ Stop to cancel
 - Click ⏯ Pause/Resume to toggle playback
-- Quota usage(estimated) updates automatically
+- Click ↓ Download to save the previous played audio in your chosen format
+- Estimated quota usage updates automatically
 
 > ## ⚠️ **Note**
 >
