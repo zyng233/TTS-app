@@ -1,12 +1,14 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 from typing import List, Dict, Optional
+from core.tts.base_voice import BaseVoiceManager
 
-class VoiceDropdown(ttk.Frame):
-    def __init__(self, master, tts_generator=None, **kwargs):
+class VoiceControls(ttk.Frame):
+    def __init__(self, master, tts_engine=None, **kwargs):
         super().__init__(master, **kwargs)
         self.voices: List[Dict] = []
-        self.tts = tts_generator
+        self.tts_engine= tts_engine
+        self.voice_manager = None
         self._setup_ui()
     
     def _setup_ui(self):
@@ -27,17 +29,16 @@ class VoiceDropdown(ttk.Frame):
         
         self.columnconfigure(1, weight=1)
 
-    def load_voices_for_language(self, language_code: str):
-        """Load voices for a specific language code."""
+    def load_voices_for_language(self, language: str):
+        """Load voices for a specific language."""
         try:
-            if not self.tts:
+            if not self.tts_engine:
                 raise ValueError("TTS engine not initialized")
                 
             self.voice_var.set("")
             self.details_var.set("Loading voices...")
             self.update_idletasks()
-            
-            self.voices = self.tts.get_available_voices(language_code)
+            self.voices = self.tts_engine.get_available_voices(language)
             voice_names = [v['name'] for v in self.voices]
             
             if not voice_names:
@@ -50,19 +51,7 @@ class VoiceDropdown(ttk.Frame):
         except Exception as e:
             messagebox.showerror("Voice Error", f"Failed to load voices:\n{str(e)}")
             self.details_var.set("Error loading voices")
-
-    def _update_details(self, event=None):
-        """Update voice details when selection changes."""
-        selected = self.voice_var.get()
-        voice = next((v for v in self.voices if v['name'] == selected), None)
-        if voice:
-            details = (
-                f"Type: {voice.get('voice_type', 'Standard')} | "
-                f"Gender: {voice['gender']}"
-            )
-            self.details_var.set(details)
-        else:
-            self.details_var.set("No voice details available")
+            raise
 
     def get_selected_voice(self) -> Optional[Dict]:
         """Get complete details of the currently selected voice."""
@@ -81,7 +70,22 @@ class VoiceDropdown(ttk.Frame):
         self.details_var.set("No voice selected")
         self.dropdown['values'] = []
         self.voices = []
+    
+    def _update_details(self, event=None):
+        """Update voice details when selection changes"""
+        selected = self.voice_var.get()
+        voice = next((v for v in self.voices if v['name'] == selected), None)
 
-    def set_tts_engine(self, tts_generator):
-        self.tts = tts_generator
+        if voice and self.voice_manager:
+            details = self.voice_manager.format_voice_details(voice)
+            self.details_var.set(details)
+        else:
+            self.details_var.set("No voice details available")
+            
+    def set_voice_manager(self, voice_manager: BaseVoiceManager):
+        """Set the voice manager and clear current selection"""
+        self.voice_manager = voice_manager
         self.clear_voices()
+        
+    def set_tts_engine(self, tts_engine):
+        self.tts_engine = tts_engine
