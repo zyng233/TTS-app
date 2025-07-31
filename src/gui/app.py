@@ -1,95 +1,167 @@
 import io
 import platform
 import sys
-from pathlib import Path
 import pygame
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from ttkbootstrap import Style
-from ttkbootstrap.widgets import Scale, Progressbar
-from .components.TextEditor import TextEditor
-from .components.AudioProfileDropdown import AudioProfileDropdown
-from .components.AudioFormatDropdown import AudioFormatDropdown
-from .components.VoiceDropdown import VoiceDropdown
-from .components.LanguageDropdown import LanguageDropdown
-from .components.QuotapPanel import QuotaPanel
+from ttkbootstrap.widgets import Progressbar
+from .components.text_editor import TextEditor
+from .components.audio_formats import AudioFormatDropdown
+from .components.voice_controls import VoiceControls
+from .components.language_controls import LanguageControls
+from .components.quota_usage import QuotaPanel
+from .components.service_switcher import ServiceSwitcher
+from core.auth import AuthManager
 from core.tts.factory import TTSFactory, TTSService
+from core.tts.voice_factory import VoiceManagerFactory
+from core.tts.service_types import TTSService
 from core.utils import setup_logger
+from gui.layouts.google import GoogleTTSLayout
+from gui.layouts.elevenlabs import ElevenLabsLayout
 
 class TTSApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Text-to-Speech Player")
+        self.auth_manager = AuthManager()
         self._set_platform_specifics()
-        self.is_playing = False
-        self.is_paused = False
         self._init_audio()
         self.logger = setup_logger()
-                
-        try:
-            self.tts_engine = TTSFactory.create(
-                TTSService.GOOGLE,
-                update_callback=lambda stats: self.update_quota(stats)
-            )
-        except Exception as e:
-            messagebox.showerror("Initialization Error", f"Failed to initialize TTS engine: {str(e)}")
-            self.destroy()
-            return
         
+        # Service management
+        self.services = {}
+        self.voice_manager_factory = VoiceManagerFactory()
+        self._initialize_tts_service()
+        self._activate_service(TTSService.GOOGLE)
         self._setup_ui()
-        self.update_quota()
 
     def _set_platform_specifics(self):
         """Platform-specific adjustments"""
         if platform.system() == 'Darwin':
-            self.geometry("620x550") 
+            self.geometry("650x630") 
             if getattr(sys, 'frozen', False) and '.app' in sys.executable:
                 self.createcommand('tk::mac::ReopenApplication', self._on_reopen)
         else:
-            self.geometry("600x530")
-        self.minsize(400, 400)
+            self.geometry("630x630")
+        self.minsize(430, 500)
 
     def _init_audio(self):
         """Initialize audio with platform-appropriate settings"""
         buffer_size = 2048 if platform.system() == 'Darwin' else 1024
         pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=buffer_size)
 
+    def _initialize_tts_service(self):
+        """Initialize all TTS services"""
+        try:
+            self.services[TTSService.GOOGLE] = TTSFactory.create(
+                service_type=TTSService.GOOGLE,
+                auth_manager=self.auth_manager,
+                update_callback=lambda stats: self.update_quota(stats)
+            )
+            self.services[TTSService.ELEVENLABS] = TTSFactory.create(
+                service_type=TTSService.ELEVENLABS,
+                auth_manager=self.auth_manager,
+                update_callback=lambda stats: self.update_quota(stats)
+            )
+        except Exception as e:
+            messagebox.showerror("Initialization Error", 
+                f"Failed to initialize {self.current_service.name} TTS engine: {str(e)}")
+            raise
+    
+    def _activate_service(self, service: TTSService):
+        """Activate a pre-initialized service"""
+        self.current_service = service
+        self.tts_engine = self.services[service]
+        self.current_voice_manager = self.tts_engine.voice_manager
+    
     def _setup_ui(self):
         self.style = Style("simplex") 
         container = ttk.Frame(self)
         container.pack(fill=tk.BOTH, expand=True)
 
-        # Scroll bar
-        canvas = tk.Canvas(container, borderwidth=0, highlightthickness=0)
-        scrollbar = ttk.Scrollbar(container, orient="vertical", command=canvas.yview)
-        canvas.configure(yscrollcommand=scrollbar.set)
-        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        available_services = {
+            "Google": TTSService.GOOGLE,
+            "ElevenLabs": TTSService.ELEVENLABS
+        }
+        self.service_switcher = ServiceSwitcher(
+            container, 
+            self, 
+            available_services,
+            command=self.switch_service
+        )
+        self.service_switcher.pack(fill=tk.X, padx=10, pady=5)
+
+        self._setup_main_content(container)
+            
+    def _setup_main_content(self, parent):
+        """Setup the main content area with original layout"""
+        self.main_wrapper = ttk.Frame(parent)
+        self.main_wrapper.pack(fill=tk.BOTH, expand=True, padx=20)
         
-        self.main_wrapper = ttk.Frame(canvas, padding=(20, 0))
-        self.main_frame = ttk.Frame(self.main_wrapper)
-        self.main_frame.pack(fill=tk.BOTH, expand=True)
+        content_frame = ttk.Frame(self.main_wrapper)
+        content_frame.pack(fill=tk.BOTH, expand=True)
 
-        self.main_frame_id = canvas.create_window((0, 0), window=self.main_wrapper, anchor="nw")
+        self._setup_text_editor(content_frame)
+        self._setup_top_controls(content_frame)
+        self._setup_control_buttons(content_frame)
+        self._setup_status_bar(content_frame)
         
-        def on_configure(event):
-            canvas.configure(scrollregion=canvas.bbox("all"))
+    def switch_service(self, service: TTSService):
+        """Switch between different TTS services asynchronously"""
+        if service == self.current_service:
+            return
+            
+        try:
+            self.service_switcher.disable()
+            self.update_status_meter(0, f"Switching to {service.name}...")
+            
+            if hasattr(self, 'service_controls'):
+                for widget in self.service_controls_frame.winfo_children():
+                    widget.destroy()
+            
+            self._perform_service_switch(service)
+            self.service_switcher.enable()
+            self.update_status_meter(100, f"Switched to {service.name}")
+            self.after(1000, lambda: self.update_status_meter(0, "Ready"))
+        except Exception as e:
+            self.service_switcher.enable()
+            self.update_status_meter(0, f"Failed to switch to {service.name}")
+            messagebox.showerror("Error", f"Failed to switch to {service.name}: {str(e)}")
 
-        self.main_wrapper.bind("<Configure>", on_configure)
+    def _perform_service_switch(self, service):
+        """Perform the actual service switch in background"""
+        try:
+            self._activate_service(service)
+            self.after(0, self._update_ui_after_switch, service)
+            
+        except Exception as e:
+            self.after(0, self._handle_switch_error, service, str(e))
 
-        def on_canvas_resize(event):
-            canvas.itemconfig(self.main_frame_id, width=event.width)
+    def _update_ui_after_switch(self, service):
+        """Update UI after successful switch"""
+        if hasattr(self, "top_controls_frame"):
+            self._populate_top_controls(self.top_controls_frame)
 
-        canvas.bind("<Configure>", on_canvas_resize)
+        self.update_quota()
+        self.is_playing = False
+        self.is_paused = False
+        self.current_audio_content = None
         
-        self.bind_all("<MouseWheel>", lambda e: canvas.yview_scroll(int(-1 * (e.delta / 120)), "units"))
+        if hasattr(self, 'download_button'):
+            self.download_button.config(state=tk.DISABLED)
+        
+        self.service_switcher.enable()
 
-        self._setup_text_editor(self.main_frame)
-        self._setup_top_controls(self.main_frame)
-        self._setup_control_buttons(self.main_frame)
-        self._setup_status_bar(self.main_frame)
-        self._setup_bindings()
+        self.update_status_meter(100, f"Switched to {service.name}")
+        messagebox.showinfo("Service Changed", f"Switched to {service.name} service")
 
+    def _handle_switch_error(self, service, error):
+        """Handle errors during service switch"""
+        self.service_switcher.enable()
+        self.update_status_meter(0, f"Failed to switch to {service.name}")
+        messagebox.showerror("Error", f"Failed to switch to {service.name}: {error}")
+        
     def _setup_text_editor(self, parent):
         """Create and pack the main text editor for input."""
         ttk.Label(parent, text="Enter text:").pack(anchor=tk.W)
@@ -97,38 +169,55 @@ class TTSApp(tk.Tk):
         self.text_editor.pack(expand=True, fill=tk.BOTH, pady=(0, 10))
     
     def _setup_top_controls(self, parent):
-        """Create the top controls section."""
-        top_controls_frame = ttk.Frame(parent)
-        top_controls_frame.pack(fill=tk.X, pady=(0, 10))
-        
-        top_controls_frame.columnconfigure(0, weight=2)
-        top_controls_frame.columnconfigure(1, weight=1)
-
-        left_frame = ttk.Frame(top_controls_frame)
-        left_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
-        
-        right_frame = ttk.Frame(top_controls_frame)
-        right_frame.grid(row=0, column=1, sticky="nsew")
-
-        self._setup_language_voice_dropdowns(left_frame)
-        self._setup_audio_profile(left_frame)  
-        
-        self._setup_voice_controls(right_frame)
-        self._setup_format_selector(right_frame) 
+        """Create the top controls section."""  
+        self.top_controls_frame = ttk.Frame(parent)
+        self.top_controls_frame.pack(fill=tk.X, pady=(0, 10))
+        self._populate_top_controls(self.top_controls_frame)
     
-    def _setup_language_voice_dropdowns(self, parent):
+    def _populate_top_controls(self, frame): 
+        for widget in frame.winfo_children():
+            widget.destroy()
+            
+        frame.columnconfigure(0, weight=2)
+        frame.columnconfigure(1, weight=3)
+
+        left_frame = ttk.Frame(frame)
+        left_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
+        right_frame = ttk.Frame(frame)
+        right_frame.grid(row=0, column=1, sticky="nsew")
+        
+        # Service-specific controls
+        self.service_controls_frame = ttk.Frame(right_frame)
+        self.service_controls_frame.pack(fill=tk.BOTH, expand=True)
+        self._setup_service_controls()
+        
+        model = self.service_controls.get_selected_model()
+        
+        self._setup_language_voice_dropdowns(left_frame, model)
+        self._setup_format_selector(left_frame) 
+
+        if self.current_service == TTSService.ELEVENLABS:
+            self.service_controls._setup_model_dropdown(left_frame, self.language_dropdown, self.voice_dropdown)
+    
+    def _setup_language_voice_dropdowns(self, parent, model=None):
         """Initialize and pack the language and voice selection dropdowns."""
         dropdown_frame = ttk.LabelFrame(parent, text="Language & Voice", padding=(10, 5))
-        dropdown_frame.pack(fill=tk.X, pady=(0, 5)) 
+        dropdown_frame.pack(fill=tk.X, pady=(0, 5))
 
-        self.language_dropdown = LanguageDropdown(dropdown_frame, self.tts_engine)
+        self.language_dropdown = LanguageControls(dropdown_frame, self.tts_engine)
         self.language_dropdown.pack(fill=tk.X, pady=(0, 5))
 
-        self.voice_dropdown = VoiceDropdown(dropdown_frame, self.tts_engine)
+        self.voice_dropdown = VoiceControls(dropdown_frame, self.tts_engine)
         self.voice_dropdown.pack(fill=tk.X)
 
-        self.language_dropdown.load_languages()
+        self.language_dropdown.load_languages(model=model)
         self.language_dropdown.dropdown.bind("<<ComboboxSelected>>", self._update_voices)
+        
+        self.voice_dropdown.set_voice_manager(self.current_voice_manager)
+        
+        first_lang = self.language_dropdown.get_first_language()
+        if first_lang:
+            self.voice_dropdown.load_voices_for_language(first_lang)
 
     def _setup_format_selector(self, parent):
         """Setup audio format selection below language/voice dropdowns"""
@@ -138,7 +227,7 @@ class TTSApp(tk.Tk):
         control_frame = ttk.Frame(format_frame)
         control_frame.pack(fill=tk.X)
         
-        self.format_dropdown = AudioFormatDropdown(control_frame)
+        self.format_dropdown = AudioFormatDropdown(control_frame, self.tts_engine)
         self.format_dropdown.pack(side=tk.LEFT, padx=(0, 5))
         
         self.download_button = ttk.Button(
@@ -150,57 +239,31 @@ class TTSApp(tk.Tk):
         )
         self.download_button.pack(side=tk.RIGHT, padx=(0, 5))
         self.current_audio_content = None
-    
-    def _setup_voice_controls(self, parent):
-        """Create and pack voice control"""
-        container = ttk.Frame(parent)
-        container.pack(fill=tk.BOTH, expand=True)
         
-        voice_control = ttk.LabelFrame(container, text="Voice Controls", padding=(10, 5))
-        voice_control.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
-
-        # Rate
-        ttk.Label(voice_control, text="Rate:").pack(anchor=tk.W)
-        rate_frame = ttk.Frame(voice_control)
-        rate_frame.pack(fill=tk.X, pady=(0, 5))
-
-        self.rate_slider = Scale(rate_frame, from_=0.25, to=4.0, value=1.0,
-                                orient=tk.HORIZONTAL, length=100, bootstyle="success")
-        self.rate_slider.pack(side=tk.LEFT, padx=(0, 5), fill=tk.X, expand=True)
-
-        self.rate_var = tk.StringVar(value="1.0")
-        self.rate_entry = ttk.Entry(rate_frame, textvariable=self.rate_var, width=5)
-        self.rate_entry.pack(side=tk.LEFT)
-
-        # Pitch
-        ttk.Label(voice_control, text="Pitch:").pack(anchor=tk.W)
-        pitch_frame = ttk.Frame(voice_control)
-        pitch_frame.pack(fill=tk.X)
-
-        self.pitch_slider = Scale(pitch_frame, from_=-20.0, to=20.0, value=0.0,
-                                orient=tk.HORIZONTAL, length=100, bootstyle="warning")
-        self.pitch_slider.pack(side=tk.LEFT, padx=(0, 5), fill=tk.X, expand=True)
-
-        self.pitch_var = tk.StringVar(value="0.0")
-        self.pitch_entry = ttk.Entry(pitch_frame, textvariable=self.pitch_var, width=5)
-        self.pitch_entry.pack(side=tk.LEFT)
+    def _setup_service_controls(self):
+        """Setup service-specific controls"""
+        for widget in self.service_controls_frame.winfo_children():
+            widget.destroy()
+            
+        if not hasattr(self, 'service_controls_cache'):
+            self.service_controls_cache = {}
         
-    def _setup_audio_profile(self, parent):
-        """Audio Profile dropdown moved to left column"""
-        audio_profile_frame = ttk.LabelFrame(parent, text="Audio Profile", padding=(10, 5))
-        audio_profile_frame.pack(fill=tk.X, pady=(10, 0))
+        if (self.current_service not in self.service_controls_cache or 
+            not self.service_controls_cache[self.current_service].winfo_exists()):
+            
+            if self.current_service == TTSService.GOOGLE:
+                self.service_controls_cache[self.current_service] = GoogleTTSLayout(self.service_controls_frame)
+            elif self.current_service == TTSService.ELEVENLABS:
+                self.service_controls_cache[self.current_service] = ElevenLabsLayout(self.service_controls_frame)
+
         
-        self.audio_profile_dropdown = AudioProfileDropdown(audio_profile_frame)
-        self.audio_profile_dropdown.pack(fill=tk.X)
+        self.service_controls_cache[self.current_service].pack(fill=tk.BOTH, expand=True)
+        self.service_controls = self.service_controls_cache[self.current_service]
     
     def _setup_control_buttons(self, parent):
         """Create and pack audio control buttons""" 
         control_frame = ttk.Frame(parent)
         control_frame.pack(fill=tk.X)
-
-        # SSML Toggle
-        self.ssml_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(control_frame, text="SSML", variable=self.ssml_var).pack(side=tk.LEFT)
 
         # Control Buttons
         button_frame = ttk.Frame(control_frame)
@@ -238,23 +301,7 @@ class TTSApp(tk.Tk):
         self.quota_panel = QuotaPanel(parent)
         self.quota_panel.pack(fill=tk.X, pady=10)
         self.update_quota()
-
-    def _setup_bindings(self):
-        """Bind slider events to update rate and pitch entry fields.""" 
-        def update_rate_entry(event=None):
-            self.rate_var.set(f"{self.rate_slider.get():.2f}")
-        self.rate_slider.bind("<B1-Motion>", update_rate_entry)
-        self.rate_slider.bind("<ButtonRelease-1>", update_rate_entry)
-
-        def update_pitch_entry(event=None):
-            self.pitch_var.set(f"{self.pitch_slider.get():.1f}")
-        self.pitch_slider.bind("<B1-Motion>", update_pitch_entry)
-        self.pitch_slider.bind("<ButtonRelease-1>", update_pitch_entry)
-        
-        self.bind("<space>", lambda e: self.toggle_pause())
-        self.bind("<s>", lambda e: self.stop_audio())
-        self.bind("<p>", lambda e: self.play_audio())
-
+    
     def update_status_meter(self, progress, status_text):
         self.progress_var.set(progress)
         self.status_label.config(text=status_text)
@@ -262,21 +309,15 @@ class TTSApp(tk.Tk):
         self.update()
     
     def _update_voices(self, event=None):
-        """Update available voices when language changes"""       
+        """Update available voices when language changes"""    
         selected_language = self.language_dropdown.get_selected_language()
-        if selected_language:
-            self.voice_dropdown.load_voices_for_language(selected_language)
+        self.voice_dropdown.load_voices_for_language(selected_language)   
     
     def update_quota(self, stats=None):
         """Update quota display"""    
         try:
             stats = stats or self.tts_engine.get_usage_stats()
-            self.quota_panel.update_stats({
-                'used': stats['used'],
-                'remaining': stats['remaining'],
-                'source': stats['source'],
-                'service': 'google'
-            })
+            self.quota_panel.update_stats(stats)
         except Exception as e:
             self.logger.error(f"Failed to update quota: {str(e)}")
         
@@ -299,61 +340,30 @@ class TTSApp(tk.Tk):
             self.update_status_meter(0, "Input Error")
             return
         
-        voice_params = {
-            "language_code": voice_data["language"],
-            "name": voice_data["name"],
-            "ssml_gender": voice_data["gender"]
-        }
-
-        is_ssml = self.ssml_var.get()
-        audio_content = None
+        voice_params = self._get_voice_parameters(voice_data)
+        tts_params = self.service_controls.get_voice_parameters()
+        
+        if tts_params is None:
+            self.update_status_meter(0, "Invalid parameters")
+            return
+        
         self.update_status_meter(30, "Generating...")
 
         try:
-            try:
-                speaking_rate = float(self.rate_var.get())
-                pitch = float(self.pitch_var.get())
-            except ValueError:
-                messagebox.showerror("Invalid Input", "Please enter numeric values for speaking rate and pitch.")
-                return
-            
-            if not (0.25 <= speaking_rate <= 4.0):
-                messagebox.showwarning(
-                    "Invalid Rate",
-                    "Speaking rate must be between 0.25 and 4.0.\n\nNote: Some voices only support rate between 0.25 and 2.0."
-                    )
-                self.update_status_meter(0, "Invalid Rate")
-                return
-            
-            if not (-20.0 <= pitch <= 20.0):
-                messagebox.showwarning(
-                    "Invalid Pitch", 
-                    "Pitch must be between -20 and 20.\n\nNote: Some voices do not support custom pitch values."
-                    )
-                self.update_status_meter(0, "Invalid Pitch")
-                return
-
             self.update_status_meter(50, "Generating...")
-            
-            selected_profile = self.audio_profile_dropdown.get_selected_profile()
-            effects_profile_id = [selected_profile] if selected_profile else None
-            self.current_audio_format = "MP3"
-            
+            self.current_audio_format = self.format_dropdown.get_selected_format()
             audio_content = self.tts_engine.generate_to_memory(
                 text=text,
                 voice_data=voice_params,
                 audio_format=self.current_audio_format,
-                speaking_rate=speaking_rate,
-                pitch=pitch,
-                is_ssml=is_ssml,
-                effects_profile_id=effects_profile_id
+                **tts_params
             )
 
             self.update_status_meter(80, "Generating...")
             self._play_audio_content(audio_content)
 
         except RuntimeError as e:
-            if "does not support SSML" in str(e) and is_ssml:
+            if "does not support SSML" in str(e) and tts_params.get('is_ssml', False):
                 self._handle_ssml_fallback()
             else:
                 messagebox.showerror("Generation Error", f"Failed to generate speech:\n{str(e)}")
@@ -361,7 +371,21 @@ class TTSApp(tk.Tk):
         except Exception as e:
             messagebox.showerror("Generation Error", f"Failed to generate speech:\n{str(e)}")
             self.update_status_meter(0, "Generation Error")
-        
+    
+    def _get_voice_parameters(self, voice_data):
+        """Get service-specific voice parameters"""
+        if self.current_service == TTSService.GOOGLE:
+            return {
+                "language_code": voice_data["language"],
+                "name": voice_data["name"],
+                "ssml_gender": voice_data["gender"]
+            }
+        elif self.current_service == TTSService.ELEVENLABS:
+            return {
+                "voice_id": voice_data["id"],
+                "model": self.service_controls.get_voice_parameters().get("model")
+            }  
+            
     def _play_audio_content(self, audio_content):
         """Play audio from binary content"""
         self.current_audio_content = audio_content

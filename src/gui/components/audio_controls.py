@@ -13,7 +13,7 @@ PROFILE_MAP = {
 
 DISPLAY_NAMES = list(PROFILE_MAP.keys())
 
-class AudioProfileDropdown(ttk.Frame):
+class AudioControls(ttk.Frame):
     def __init__(self, parent):
         super().__init__(parent)
 
