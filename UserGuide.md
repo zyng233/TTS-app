@@ -19,7 +19,7 @@ A cross-platform app for converting text to speech using TTS services like Googl
 
 ## 📋 Prerequisites
 
-- Python 3.7+
+- Python 3.10+ (Recommended)
 - Google Cloud TTS
   - [Google Cloud account](https://cloud.google.com/)
   - Active Google Cloud project with billing enabled
