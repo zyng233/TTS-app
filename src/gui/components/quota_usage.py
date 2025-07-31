@@ -15,11 +15,11 @@ class QuotaPanel(ttk.LabelFrame):
     def update_stats(self, stats: Dict):
         try:
             local_used = stats.get('used', 0)
-            local_text = f" Local: {local_used:,} chars"
-            api_text = "API: Not Available"
+            local_text = f" Local : {local_used:,} chars"
+            api_text = " API : Not Available"
 
             if stats.get('api_used') is not None and stats.get('api_limit') is not None:
-                api_text = f"API: {stats['api_used']:,} / {stats['api_limit']:,} chars"
+                api_text = f" API : {stats['api_used']:,} / {stats['api_limit']:,} chars"
                 
             display_text = f"{api_text} | {local_text}"
             self.char_var.set(display_text)

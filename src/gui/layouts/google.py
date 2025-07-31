@@ -3,9 +3,9 @@ from tkinter import ttk, messagebox
 from ttkbootstrap.widgets import Scale
 from ..components.audio_controls import AudioControls
 
-class GoogleTTSLayout:
+class GoogleTTSLayout(ttk.Frame):
     def __init__(self, parent_frame: ttk.Frame):
-        self.parent = parent_frame
+        super().__init__(parent_frame)
         self._setup_voice_controls(parent_frame)
         self._setup_audio_profile(parent_frame)
         self._setup_ssml_toggle(parent_frame)

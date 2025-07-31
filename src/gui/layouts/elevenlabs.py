@@ -2,16 +2,15 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from ttkbootstrap.widgets import Scale
 
-class ElevenLabsLayout:
-    def __init__(self, parent_frame: ttk.Frame, language_dropdown, voice_dropdown):
-        self.parent = parent_frame
+class ElevenLabsLayout(ttk.Frame):
+    def __init__(self, parent_frame: ttk.Frame):
+        super().__init__(parent_frame)
         self.models = [
             ("Multilingual v2", "eleven_multilingual_v2"),
             ("Turbo v2", "eleven_turbo_v2")
         ]
         self.model_mapping = {display: value for display, value in self.models}
         self.model_var = tk.StringVar(value="Multilingual v2")
-        self._setup_model_dropdown(parent_frame, language_dropdown, voice_dropdown)
         self._setup_voice_controls(parent_frame)
         self._setup_bindings()
         
