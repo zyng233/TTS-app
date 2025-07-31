@@ -28,7 +28,7 @@ class ElevenLabsUsageMonitor:
         if not self.usage_file.exists():
             return {
                 'month': self._get_current_month(),
-                'local_used': 0,
+                'used': 0,
                 'api_sync_time': None
             }
         
@@ -39,7 +39,7 @@ class ElevenLabsUsageMonitor:
             if data.get('month') != self._get_current_month():
                 data = {
                     'month': self._get_current_month(),
-                    'local_used': 0,
+                    'used': 0,
                     'api_sync_time': None
                 }
                 self._save_usage_data(data)
@@ -49,7 +49,7 @@ class ElevenLabsUsageMonitor:
             logger.error(f"Error loading usage data: {e}")
             return {
                 'month': self._get_current_month(),
-                'local_used': 0,
+                'used': 0,
                 'api_sync_time': None
             }
 
@@ -79,8 +79,9 @@ class ElevenLabsUsageMonitor:
     def update_usage(self, char_count: int) -> None:
         """Update local usage tracking"""
         data = self._load_usage_data()
-        data['local_used'] = data.get('local_used', 0) + char_count
+        data['used'] = data.get('used', 0) + char_count
         self.local_char_count += char_count
+        data['api_used'] = data.get('api_used', 0) + char_count
         self._save_usage_data(data)
 
     def get_usage_stats(self) -> Dict[str, Union[int, str]]:
@@ -90,21 +91,20 @@ class ElevenLabsUsageMonitor:
         
         stats = {
             'month': data.get('month', self._get_current_month()),
-            'local_used': data.get('local_used', 0),
+            'used': data.get('used', 0),
             'source': 'local',
             'last_sync': data.get('api_sync_time')
         }
-        
         if api_data:
+            subscription = api_data.get('subscription', {})
             stats.update({
-                'api_used': api_data.get('character_count', 0),
-                'api_limit': api_data.get('character_limit', 0),
+                'api_used': subscription.get('character_count', 0),
+                'api_limit': subscription.get('character_limit', 0),
                 'source': 'api',
                 'last_sync': datetime.now().isoformat()
             })
             data['api_sync_time'] = stats['last_sync']
             self._save_usage_data(data)
-        
         return stats
 
     def print_usage_report(self) -> None:
@@ -119,7 +119,7 @@ class ElevenLabsUsageMonitor:
             print(f"• API Usage: {stats['api_used']:,}/{stats['api_limit']:,}")
             print(f"• API Remaining: {remaining:,}")
         
-        print(f"• Local Usage: {stats['local_used']:,} chars")
+        print(f"• Local Usage: {stats['used']:,} chars")
         
         if stats['last_sync']:
             print(f"• Last Synced: {stats['last_sync']}")

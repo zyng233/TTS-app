@@ -106,7 +106,6 @@ class ElevenLabsAudioConfig:
         """Validate and return normalized model enum"""
         if isinstance(model, ElevenLabsModel):
             return model
-        print(model)
         try:
             return ElevenLabsModel(model.lower())
         except ValueError:

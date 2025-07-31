@@ -2,11 +2,9 @@ import tkinter as tk
 from tkinter import ttk
 from typing import Dict
 
-FREE_TIER_CHAR_LIMIT = 1000000
-
 class QuotaPanel(ttk.LabelFrame):
     def __init__(self, master, **kwargs):
-        super().__init__(master, text="Local Usage", **kwargs)
+        super().__init__(master, text="Character Usage", **kwargs)
         self._setup_ui()
         
     def _setup_ui(self):
@@ -16,12 +14,15 @@ class QuotaPanel(ttk.LabelFrame):
     
     def update_stats(self, stats: Dict):
         try:
-            used = stats.get('used', 0)
-            remaining = stats.get('remaining', FREE_TIER_CHAR_LIMIT)
-            total = FREE_TIER_CHAR_LIMIT
-            
-            display_text = f"Used Characters: {used:,} / {total:,}"
+            local_used = stats.get('used', 0)
+            local_text = f" Local: {local_used:,} chars"
+            api_text = "API: Not Available"
+
+            if stats.get('api_used') is not None and stats.get('api_limit') is not None:
+                api_text = f"API: {stats['api_used']:,} / {stats['api_limit']:,} chars"
+                
+            display_text = f"{api_text} | {local_text}"
             self.char_var.set(display_text)
-    
+            
         except Exception as e:
             self.char_var.set("Characters: Error loading usage") 

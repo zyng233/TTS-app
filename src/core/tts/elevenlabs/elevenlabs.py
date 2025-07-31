@@ -76,57 +76,9 @@ class ElevenLabsTTS(BaseTTS):
             self.logger.error(f"Failed to update usage: {e}")
         
         return audio_content
-    
-    def _update_usage(self, char_count: int) -> None:
-        """Update all tracking systems"""
-        self.character_count += char_count
-        
-        try:
-            self.usage_monitor.update_usage(char_count)
-        except Exception as e:
-            self.logger.error(f"Failed to update file usage: {str(e)}")
-        
-        if self.update_callback:
-            try:
-                self.update_callback(self.get_usage_stats())
-            except Exception as e:
-                self.logger.error(f"Callback failed: {str(e)}")
 
-    def get_usage_stats(self) -> Dict[str, Union[int, str]]:
-        """Get usage stats directly from API"""
-        stats = {
-            'service': 'elevenlabs',
-            'local_count': self.character_count,
-            'source': 'local' 
-        }
-        
-        try:
-            monitor_stats = self.usage_monitor.get_usage_stats()
-
-            stats.update({
-                'month': monitor_stats.get('month'),
-                'local_used': monitor_stats.get('local_used', 0),
-                'source': monitor_stats.get('source', 'local'),
-                'last_sync': monitor_stats.get('last_sync')
-            })
-
-            if 'api_used' in monitor_stats and 'api_limit' in monitor_stats:
-                stats.update({
-                    'api_used': monitor_stats['api_used'],
-                    'api_limit': monitor_stats['api_limit'],
-                    'api_remaining': max(0, monitor_stats['api_limit'] - monitor_stats['api_used']),
-                    'effective_remaining': max(0, monitor_stats['api_limit'] - monitor_stats['api_used']),
-                    'source': 'api'
-                })
-            else:
-                stats['effective_remaining'] = monitor_stats.get('local_used', 0)
-
-        except Exception as e:
-            self.logger.error(f"Failed to get usage stats: {str(e)}")
-            stats['error'] = str(e)
-            stats['effective_remaining'] = 0
-
-        return stats
+    def get_usage_stats(self):
+        return self.usage_monitor.get_usage_stats()
     
     def get_service_name(self) -> TTSService:
         return TTSService.ELEVENLABS

@@ -298,25 +298,7 @@ class TTSApp(tk.Tk):
         """Update quota display"""    
         try:
             stats = stats or self.tts_engine.get_usage_stats()
-            service_name = self.tts_engine.get_service_name()
-            
-            if service_name == TTSService.GOOGLE:
-                used = stats.get('used', 0)
-                remaining = stats.get('remaining', 0)
-            elif service_name == TTSService.ELEVENLABS:
-                used = stats.get('local_used', 0)
-                limit = stats.get('api_limit', 100000)
-                remaining = max(0, limit - used)
-            else:
-                used = stats.get('used', 0)
-                remaining = stats.get('remaining', 0)
-
-            self.quota_panel.update_stats({
-                'used': used,
-                'remaining': remaining,
-                'source': stats.get('source', 'local'),
-                'service': service_name
-            })
+            self.quota_panel.update_stats(stats)
         except Exception as e:
             self.logger.error(f"Failed to update quota: {str(e)}")
         

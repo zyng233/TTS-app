@@ -38,7 +38,7 @@ class ElevenLabsLayout:
         # Speed
         ttk.Label(voice_control, text="Speed:").pack(anchor=tk.W)
         self._add_slider_with_entry(
-            voice_control, "speed", 0.5, 2.0, 1.0, "info"
+            voice_control, "speed", 0.7, 1.2, 1.0, "info"
         )
         
         # Style
