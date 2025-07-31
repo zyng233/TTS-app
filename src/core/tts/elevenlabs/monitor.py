@@ -81,7 +81,12 @@ class ElevenLabsUsageMonitor:
         data = self._load_usage_data()
         data['used'] = data.get('used', 0) + char_count
         self.local_char_count += char_count
-        data['api_used'] = data.get('api_used', 0) + char_count
+        api_data = self._get_api_usage()
+        if api_data:
+            subscription = api_data.get('subscription', {})
+            data['api_used'] = subscription.get('character_count', 0)
+            data['api_limit'] = subscription.get('character_limit', 0)
+            data['api_sync_time'] = datetime.now().isoformat()
         self._save_usage_data(data)
 
     def get_usage_stats(self) -> Dict[str, Union[int, str]]:
