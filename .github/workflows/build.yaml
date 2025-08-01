@@ -41,6 +41,7 @@ jobs:
               --add-data "images:images" \
               --add-data "UserGuide.md:UserGuide.md" \
               src/main.py
+          fi
         shell: bash
 
       - name: Rename and move binary
