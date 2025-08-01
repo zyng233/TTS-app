@@ -151,15 +151,31 @@ class TTSApp(tk.Tk):
         self._setup_status_bar(content_frame)
     
     def _safe_set_cursor(self, cursor_type):
-        """Platform-aware cursor setting"""
-        if platform.system() == "Linux":
-            cursor_map = {
-                "watch": "left_ptr_watch",  
-                "": ""  
-            }
-            cursor_type = cursor_map.get(cursor_type, cursor_type)
-        self.config(cursor=cursor_type)
-        self.update_idletasks()
+        """Platform-aware cursor setting with enhanced error handling"""
+        if not self.winfo_exists():
+            return
+            
+        try:
+            if platform.system() == "Linux":
+                cursor_map = {
+                    "watch": ["wait", "left_ptr_watch", "progress", "watch", "pointer"],
+                    "": ["", "left_ptr", "default", "arrow"]
+                }
+                
+                for cursor_name in cursor_map.get(cursor_type, [cursor_type]):
+                    try:
+                        self.config(cursor=cursor_name)
+                        self.update_idletasks()
+                        return
+                    except tk.TclError:
+                        continue
+                self.config(cursor="")
+            else:
+                self.config(cursor=cursor_type)
+        except Exception as e:
+            print(f"Cursor change failed: {str(e)}") 
+        finally:
+            self.update_idletasks()
     
     def switch_service(self, service: TTSService):
         """Switch between different TTS services asynchronously"""
@@ -175,7 +191,12 @@ class TTSApp(tk.Tk):
                 for widget in self.service_controls_frame.winfo_children():
                     widget.destroy()
                     
-            Thread(target=self._threaded_switch, args=(service,), daemon=True).start()
+            switch_thread = Thread(
+                target=self._threaded_switch,
+                args=(service,),
+                daemon=True
+            )
+            switch_thread.start()
         except Exception as e:
             self.service_switcher.enable()
             self.update_status_meter(0, f"Failed to switch to {service.name}")
