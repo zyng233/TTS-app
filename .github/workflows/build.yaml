@@ -36,7 +36,7 @@ jobs:
         run: |
           if [ "$RUNNER_OS" = "Linux" ]; then
             docker run --rm -v "$(pwd):/src" ${{ matrix.container }} \
-              "pyinstaller --onefile \
+              sh -c "cd /src && pyinstaller --onefile \
               --strip \
               --add-binary='/usr/lib/x86_64-linux-gnu/libstdc++.so.6:.' \
               --add-data='images:images' \
