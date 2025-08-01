@@ -32,22 +32,24 @@ jobs:
       - name: Build with PyInstaller
         run: |
           if [ "$RUNNER_OS" = "Linux" ]; then
-            # Simplified Linux build with essential libraries
             pyinstaller --onefile \
               --strip \
               --add-binary='/usr/lib/x86_64-linux-gnu/libstdc++.so.6:.' \
               --add-data 'images:images' \
               --add-data 'UserGuide.md:UserGuide.md' \
+              --collect-data ttkbootstrap \
               src/main.py
           elif [ "$RUNNER_OS" = "Windows" ]; then
             pyinstaller --onefile \
               --add-data "images;images" \
               --add-data "UserGuide.md;UserGuide.md" \
+              --collect-data ttkbootstrap \
               src/main.py
           else
             pyinstaller --onefile \
               --add-data "images:images" \
               --add-data "UserGuide.md:UserGuide.md" \
+              --collect-data ttkbootstrap \
               src/main.py
           fi
         shell: bash
