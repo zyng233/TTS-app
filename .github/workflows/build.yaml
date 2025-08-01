@@ -31,9 +31,12 @@ jobs:
 
       - name: Build with PyInstaller
         run: |
-          if: runner.os == 'Linux'
-          run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            # Install required system packages for Linux
+            sudo apt-get update
             sudo apt-get install -y python3-tk
+            
+            # Build with explicit Tcl/Tk paths
             pyinstaller --onefile \
               --strip \
               --add-binary='/usr/lib/x86_64-linux-gnu/libstdc++.so.6:.' \
@@ -43,13 +46,20 @@ jobs:
               --add-data 'UserGuide.md:UserGuide.md' \
               --collect-data ttkbootstrap \
               src/main.py
+
           elif [ "$RUNNER_OS" = "Windows" ]; then
+            # Windows build (Tcl/Tk is auto-detected)
             pyinstaller --onefile \
               --add-data "images;images" \
               --add-data "UserGuide.md;UserGuide.md" \
+              --collect-data ttkbootstrap \
               src/main.py
+
           else
+            # macOS build
             pyinstaller --onefile \
+              --add-data "$(python -c "import tkinter; print(tkinter.__file__[:-15])")/tcl8.6:tk" \
+              --add-data "$(python -c "import tkinter; print(tkinter.__file__[:-15])")/tk8.6:tcl" \
               --add-data "images:images" \
               --add-data "UserGuide.md:UserGuide.md" \
               --collect-data ttkbootstrap \
