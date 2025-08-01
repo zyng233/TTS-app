@@ -3,6 +3,7 @@ import platform
 import sys
 import pygame
 import tkinter as tk
+from threading import Thread
 from tkinter import ttk, messagebox, filedialog
 from ttkbootstrap import Style
 from ttkbootstrap.widgets import Progressbar
@@ -38,7 +39,15 @@ class TTSApp(tk.Tk):
 
     def _set_platform_specifics(self):
         """Platform-specific adjustments"""
-        if platform.system() == 'Darwin':
+        if platform.system() == 'Linux':
+            self.style = Style("flatly") 
+            self.tk.call('tk', 'scaling', 1.25)
+            self.geometry("650x650")
+            
+            self.tk_setPalette(background='#f0f0f0')
+            self.option_add('*TCombobox*Listbox.background', '#ffffff')
+            self.option_add('*TCombobox*Listbox.foreground', '#000000')
+        elif platform.system() == 'Darwin':
             self.geometry("650x630") 
             if getattr(sys, 'frozen', False) and '.app' in sys.executable:
                 self.createcommand('tk::mac::ReopenApplication', self._on_reopen)
@@ -50,7 +59,7 @@ class TTSApp(tk.Tk):
         """Initialize audio with platform-appropriate settings"""
         buffer_size = 2048 if platform.system() == 'Darwin' else 1024
         pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=buffer_size)
-
+            
     def _initialize_tts_service(self):
         """Initialize all TTS services"""
         try:
@@ -77,23 +86,55 @@ class TTSApp(tk.Tk):
     
     def _setup_ui(self):
         self.style = Style("simplex") 
-        container = ttk.Frame(self)
-        container.pack(fill=tk.BOTH, expand=True)
-
+        self._setup_scrollable_container()
+        
         available_services = {
             "Google": TTSService.GOOGLE,
             "ElevenLabs": TTSService.ELEVENLABS
         }
         self.service_switcher = ServiceSwitcher(
-            container, 
+            self.scrollable_frame, 
             self, 
             available_services,
             command=self.switch_service
         )
         self.service_switcher.pack(fill=tk.X, padx=10, pady=5)
 
-        self._setup_main_content(container)
-            
+        self._setup_main_content(self.scrollable_frame) 
+    
+    def _setup_scrollable_container(self):
+        """Make the main window scrollable with proper expansion"""
+        self.container = tk.Frame(self)
+        self.container.pack(fill=tk.BOTH, expand=True)
+        
+        self.canvas = tk.Canvas(self.container)
+        self.scrollbar = ttk.Scrollbar(self.container, orient="vertical", command=self.canvas.yview)
+        self.scrollable_frame = ttk.Frame(self.canvas)
+        
+        self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw", tags="frame")
+        self.canvas.configure(yscrollcommand=self.scrollbar.set)
+        
+        self.canvas.pack(side="left", fill=tk.BOTH, expand=True)
+        self.scrollbar.pack(side="right", fill="y")
+        
+        self.scrollable_frame.bind("<Configure>", self._on_frame_configure)
+        self.canvas.bind("<Configure>", self._on_canvas_configure)
+        
+        if platform.system() == "Linux":
+            self.canvas.bind_all("<Button-4>", lambda e: self.canvas.yview_scroll(-1, "units"))
+            self.canvas.bind_all("<Button-5>", lambda e: self.canvas.yview_scroll(1, "units"))
+        else:
+            self.canvas.bind_all("<MouseWheel>", lambda e: self.canvas.yview_scroll(int(-1*(e.delta/120)), "units"))
+
+    def _on_frame_configure(self, event=None):
+        """Update scrollregion when frame size changes"""
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+
+    def _on_canvas_configure(self, event):
+        """Resize the inner frame to match canvas width"""
+        canvas_width = event.width
+        self.canvas.itemconfig("frame", width=canvas_width)
+        
     def _setup_main_content(self, parent):
         """Setup the main content area with original layout"""
         self.main_wrapper = ttk.Frame(parent)
@@ -119,8 +160,9 @@ class TTSApp(tk.Tk):
             if hasattr(self, 'service_controls'):
                 for widget in self.service_controls_frame.winfo_children():
                     widget.destroy()
+                    
+            Thread(target=self._perform_service_switch, args=(service,), daemon=True).start()
             
-            self._perform_service_switch(service)
             self.service_switcher.enable()
             self.update_status_meter(100, f"Switched to {service.name}")
             self.after(1000, lambda: self.update_status_meter(0, "Ready"))
@@ -128,7 +170,7 @@ class TTSApp(tk.Tk):
             self.service_switcher.enable()
             self.update_status_meter(0, f"Failed to switch to {service.name}")
             messagebox.showerror("Error", f"Failed to switch to {service.name}: {str(e)}")
-
+    
     def _perform_service_switch(self, service):
         """Perform the actual service switch in background"""
         try:
