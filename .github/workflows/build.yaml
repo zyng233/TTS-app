@@ -12,9 +12,6 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-20.04, windows-2022, macos-12]
-        include:
-          - os: ubuntu-20.04
-            container: docker://cdrx/pyinstaller-linux:python3.10
 
     steps:
       - name: Checkout source code
@@ -35,13 +32,12 @@ jobs:
       - name: Build with PyInstaller
         run: |
           if [ "$RUNNER_OS" = "Linux" ]; then
-            docker run --rm -v "$(pwd):/src" ${{ matrix.container }} \
-              sh -c "cd /src && pyinstaller --onefile \
+            pyinstaller --onefile \
               --strip \
               --add-binary='/usr/lib/x86_64-linux-gnu/libstdc++.so.6:.' \
               --add-data='images:images' \
               --add-data='UserGuide.md:UserGuide.md' \
-              src/main.py"
+              src/main.py
           elif [ "$RUNNER_OS" = "Windows" ]; then
             pyinstaller --onefile --add-data "images;images" --add-data "UserGuide.md;UserGuide.md" src/main.py
           else
