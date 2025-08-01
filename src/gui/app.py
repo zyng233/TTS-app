@@ -29,6 +29,8 @@ class TTSApp(tk.Tk):
         self._set_platform_specifics()
         self._init_audio()
         self.logger = setup_logger()
+        self.is_playing = False
+        self.is_paused = False
         
         # Service management
         self.services = {}
@@ -147,13 +149,25 @@ class TTSApp(tk.Tk):
         self._setup_top_controls(content_frame)
         self._setup_control_buttons(content_frame)
         self._setup_status_bar(content_frame)
-        
+    
+    def _safe_set_cursor(self, cursor_type):
+        """Platform-aware cursor setting"""
+        if platform.system() == "Linux":
+            cursor_map = {
+                "watch": "left_ptr_watch",  
+                "": ""  
+            }
+            cursor_type = cursor_map.get(cursor_type, cursor_type)
+        self.config(cursor=cursor_type)
+        self.update_idletasks()
+    
     def switch_service(self, service: TTSService):
         """Switch between different TTS services asynchronously"""
         if service == self.current_service:
             return
             
         try:
+            self._safe_set_cursor("watch") 
             self.service_switcher.disable()
             self.update_status_meter(0, f"Switching to {service.name}...")
             
@@ -161,16 +175,22 @@ class TTSApp(tk.Tk):
                 for widget in self.service_controls_frame.winfo_children():
                     widget.destroy()
                     
-            Thread(target=self._perform_service_switch, args=(service,), daemon=True).start()
-            
-            self.service_switcher.enable()
-            self.update_status_meter(100, f"Switched to {service.name}")
-            self.after(1000, lambda: self.update_status_meter(0, "Ready"))
+            Thread(target=self._threaded_switch, args=(service,), daemon=True).start()
         except Exception as e:
             self.service_switcher.enable()
             self.update_status_meter(0, f"Failed to switch to {service.name}")
             messagebox.showerror("Error", f"Failed to switch to {service.name}: {str(e)}")
     
+    def _threaded_switch(self, service):
+        """Thread wrapper that handles cursor state"""
+        try:
+            self._perform_service_switch(service)
+        finally:
+            self._safe_set_cursor("")
+            self.service_switcher.enable()
+            self.update_status_meter(100, f"Switched to {service.name}")
+            self.after(1000, lambda: self.update_status_meter(0, "Ready"))
+        
     def _perform_service_switch(self, service):
         """Perform the actual service switch in background"""
         try:
