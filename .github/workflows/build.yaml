@@ -39,14 +39,18 @@ jobs:
               "pyinstaller --onefile \
               --strip \
               --add-binary='/usr/lib/x86_64-linux-gnu/libstdc++.so.6:.' \
+              --add-data='images:images' \
+              --add-data='UserGuide.md:UserGuide.md' \
               src/main.py"
           elif [ "$RUNNER_OS" = "Windows" ]; then
-            # Simplified Windows build command for PyInstaller 6.0+
-            pyinstaller --onefile \
-              --add-data "assets;assets" \
+            pyinstaller --onefile ^
+              --add-data "images;images" ^
+              --add-data "UserGuide.md;UserGuide.md" ^
               src/main.py
           else
             pyinstaller --onefile \
+              --add-data "images:images" \
+              --add-data "UserGuide.md:UserGuide.md" \
               --target-arch universal2 \
               --osx-bundle-identifier com.yourdomain.ttsapp \
               src/main.py
