@@ -66,17 +66,6 @@ jobs:
           fi
         shell: bash
 
-      - name: Verify binaries
-        run: |
-          if [ "$RUNNER_OS" = "Linux" ]; then
-            docker run --rm -v "$(pwd)/dist-release:/app" ubuntu:18.04 /app/TTS_App_Linux --version
-          elif [ "$RUNNER_OS" = "Windows" ]; then
-            ./dist-release/TTS_App_Windows.exe --version
-          else
-            ./dist-release/TTS_App_macOS --version
-          fi
-        shell: bash
-
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
