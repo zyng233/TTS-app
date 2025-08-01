@@ -11,7 +11,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-18.04, windows-latest, macos-latest]
+        os: [ubuntu-20.04, windows-2022, macos-12]
+        include:
+          - os: ubuntu-20.04
+            container: docker://cdrx/pyinstaller-linux:python3.10
 
     steps:
       - name: Checkout source code
@@ -25,50 +28,59 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pyinstaller
+          pip install "pyinstaller>=6.0"  # Explicitly require v6.0+
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-        shell: bash
 
       - name: Build with PyInstaller
         run: |
           if [ "$RUNNER_OS" = "Linux" ]; then
-            # Linux-specific optimizations
-            pyinstaller --onefile --strip --add-binary='/usr/lib/x86_64-linux-gnu/libstdc++.so.6:.' src/main.py
+            docker run --rm -v "$(pwd):/src" ${{ matrix.container }} \
+              "pyinstaller --onefile \
+              --strip \
+              --add-binary='/usr/lib/x86_64-linux-gnu/libstdc++.so.6:.' \
+              src/main.py"
           elif [ "$RUNNER_OS" = "Windows" ]; then
-            # Windows-specific optimizations
-            pyinstaller --onefile --win-private-assemblies --win-no-prefer-redirects src/main.py
+            # Updated Windows build command for PyInstaller 6.0+
+            pyinstaller --onefile \
+              --win-no-prefer-redirects \
+              --add-data "assets;assets" \
+              src/main.py
           else
-            # macOS-specific optimizations
-            pyinstaller --onefile --osx-bundle-identifier com.yourdomain.ttsapp src/main.py
+            pyinstaller --onefile \
+              --target-arch universal2 \
+              --osx-bundle-identifier com.yourdomain.ttsapp \
+              src/main.py
           fi
-        shell: bash
 
       - name: Rename and move binary
         run: |
-          mkdir dist-release
+          mkdir -p dist-release
           if [ "$RUNNER_OS" = "Windows" ]; then
             mv dist/main.exe dist-release/TTS_App_Windows.exe
           elif [ "$RUNNER_OS" = "macOS" ]; then
             mv dist/main dist-release/TTS_App_macOS
-            # Sign the macOS binary (recommended)
-            # codesign --force --deep -s "Your Developer ID" dist-release/TTS_App_macOS
           else
             mv dist/main dist-release/TTS_App_Linux
-            # Verify Linux binary compatibility
-            docker run --rm -v "$(pwd)/dist-release:/app" ubuntu:18.04 /app/TTS_App_Linux --version || echo "Compatibility check failed"
           fi
-        shell: bash
 
-      - name: Upload Build Artifact
+      - name: Verify binaries
+        run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            docker run --rm -v "$(pwd)/dist-release:/app" ubuntu:18.04 /app/TTS_App_Linux --version
+          elif [ "$RUNNER_OS" = "Windows" ]; then
+            ./dist-release/TTS_App_Windows.exe --version
+          else
+            ./dist-release/TTS_App_macOS --version
+          fi
+
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: TTS_App_${{ runner.os }}
           path: dist-release/*
 
-      - name: Upload to GitHub Release
+      - name: Create release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.ref_name }}
           files: dist-release/*
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
