@@ -52,6 +52,7 @@ jobs:
               --osx-bundle-identifier com.yourdomain.ttsapp \
               src/main.py
           fi
+        shell: bash
 
       - name: Rename and move binary
         run: |
@@ -63,6 +64,7 @@ jobs:
           else
             mv dist/main dist-release/TTS_App_Linux
           fi
+        shell: bash
 
       - name: Verify binaries
         run: |
@@ -73,6 +75,7 @@ jobs:
           else
             ./dist-release/TTS_App_macOS --version
           fi
+        shell: bash
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
