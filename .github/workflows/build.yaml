@@ -48,8 +48,6 @@ jobs:
             pyinstaller --onefile \
               --add-data "images:images" \
               --add-data "UserGuide.md:UserGuide.md" \
-              --target-arch universal2 \
-              --osx-bundle-identifier com.yourdomain.ttsapp \
               src/main.py
           fi
         shell: bash
