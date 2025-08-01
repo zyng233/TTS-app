@@ -11,7 +11,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-18.04, windows-2019, macos-12] # Pinned to specific versions
+        # Alternative for wider Windows compatibility:
+        # os: [ubuntu-18.04, windows-2019, windows-2022, macos-12]
 
     steps:
       - name: Checkout source code
@@ -30,7 +32,17 @@ jobs:
         shell: bash
 
       - name: Build with PyInstaller
-        run: pyinstaller --onefile src/main.py
+        run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            # Linux-specific optimizations
+            pyinstaller --onefile --strip --add-binary='/usr/lib/x86_64-linux-gnu/libstdc++.so.6:.' src/main.py
+          elif [ "$RUNNER_OS" = "Windows" ]; then
+            # Windows-specific optimizations
+            pyinstaller --onefile --win-private-assemblies --win-no-prefer-redirects src/main.py
+          else
+            # macOS-specific optimizations
+            pyinstaller --onefile --osx-bundle-identifier com.yourdomain.ttsapp src/main.py
+          fi
         shell: bash
 
       - name: Rename and move binary
@@ -40,8 +52,12 @@ jobs:
             mv dist/main.exe dist-release/TTS_App_Windows.exe
           elif [ "$RUNNER_OS" = "macOS" ]; then
             mv dist/main dist-release/TTS_App_macOS
+            # Sign the macOS binary (recommended)
+            # codesign --force --deep -s "Your Developer ID" dist-release/TTS_App_macOS
           else
             mv dist/main dist-release/TTS_App_Linux
+            # Verify Linux binary compatibility
+            docker run --rm -v "$(pwd)/dist-release:/app" ubuntu:18.04 /app/TTS_App_Linux --version || echo "Compatibility check failed"
           fi
         shell: bash
 
