@@ -14,7 +14,7 @@ jobs:
         os: [ubuntu-22.04, windows-latest, macos-latest]
 
     steps:
-      - name: Checkout source code
+      - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Set up Python
@@ -22,53 +22,38 @@ jobs:
         with:
           python-version: "3.10"
 
-      - name: Install system dependencies
+      - name: Install Linux dependencies (Tcl/Tk)
+        if: matrix.os == 'ubuntu-22.04'
         run: |
-          if [ "$RUNNER_OS" = "Linux" ]; then
-            sudo apt-get update
-            sudo apt-get install -y python3-tk tk-dev tcl-dev tcl tcl-tls
-          elif [ "$RUNNER_OS" = "macOS" ]; then
-            brew install tcl-tk
-          fi
-        shell: bash
+          sudo apt-get update
+          sudo apt-get install -y python3-tk tk-dev tcl-dev tcl tcl-tls libx11-6
+
+      - name: Install macOS dependencies (Tcl/Tk)
+        if: matrix.os == 'macos-latest'
+        run: |
+          brew install tcl-tk
 
       - name: Install Python dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install pyinstaller ttkbootstrap pygame
+          pip install --upgrade pip pyinstaller ttkbootstrap pygame
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-        shell: bash
+
+      - name: Create PyInstaller hook for Tcl/Tk
+        run: |
+          echo "from PyInstaller.utils.hooks import collect_data_files" > hook-tkinter.py
+          echo "datas = collect_data_files('tkinter')" >> hook-tkinter.py
 
       - name: Build with PyInstaller
         run: |
-          if [ "$RUNNER_OS" = "Linux" ]; then
-            pyinstaller --onefile \
-              --add-binary='/usr/lib/x86_64-linux-gnu/libstdc++.so.6:.' \
-              --add-data 'images:images' \
-              --add-data 'UserGuide.md:UserGuide.md' \
-              --hidden-import='PIL._tkinter_finder' \
-              --hidden-import='ttkbootstrap.localization' \
-              src/main.py
+          pyinstaller --onefile \
+            --add-data 'images:images' \
+            --add-data 'UserGuide.md:UserGuide.md' \
+            --hidden-import='ttkbootstrap.localization' \
+            --hidden-import='PIL._tkinter_finder' \
+            --additional-hooks-dir=. \
+            src/main.py
 
-          elif [ "$RUNNER_OS" = "Windows" ]; then
-            pyinstaller --onefile \
-              --add-data "images;images" \
-              --add-data "UserGuide.md;UserGuide.md" \
-              --hidden-import='PIL._tkinter_finder' \
-              --hidden-import='ttkbootstrap.localization' \
-              src/main.py
-
-          else
-            pyinstaller --onefile \
-              --add-data "images:images" \
-              --add-data "UserGuide.md:UserGuide.md" \
-              --hidden-import='PIL._tkinter_finder' \
-              --hidden-import='ttkbootstrap.localization' \
-              src/main.py
-          fi
-        shell: bash
-
-      - name: Rename and move binary
+      - name: Rename output binary
         run: |
           mkdir -p dist-release
           if [ "$RUNNER_OS" = "Windows" ]; then
@@ -78,18 +63,9 @@ jobs:
           else
             mv dist/main dist-release/TTS_App_Linux
           fi
-        shell: bash
 
-      - name: Upload Build Artifact
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: TTS_App_${{ runner.os }}
           path: dist-release/*
-
-      - name: Upload to GitHub Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ github.ref_name }}
-          files: dist-release/*
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
