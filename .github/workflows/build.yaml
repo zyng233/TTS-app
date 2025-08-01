@@ -31,28 +31,25 @@ jobs:
 
       - name: Build with PyInstaller
         run: |
-          if [ "$RUNNER_OS" = "Linux" ]; then
+          if: runner.os == 'Linux'
+          run: |
+            sudo apt-get install -y python3-tk
             pyinstaller --onefile \
               --strip \
               --add-binary='/usr/lib/x86_64-linux-gnu/libstdc++.so.6:.' \
-              --add-data '$(python -c "import tkinter; print(tkinter.__file__)")/../../tcl8.6:tk' \
-              --add-data '$(python -c "import tkinter; print(tkinter.__file__)")/../../tk8.6:tcl' \
+              --add-data "/usr/share/tcl8.6:tk" \
+              --add-data "/usr/share/tk8.6:tcl" \
               --add-data 'images:images' \
               --add-data 'UserGuide.md:UserGuide.md' \
               --collect-data ttkbootstrap \
               src/main.py
           elif [ "$RUNNER_OS" = "Windows" ]; then
             pyinstaller --onefile \
-              --add-data "$(python -c "import os, tkinter; print(os.path.dirname(tkinter.__file__))")/tcl;tcl" \
-              --add-data "$(python -c "import os, tkinter; print(os.path.dirname(tkinter.__file__))")/tk;tk" \
               --add-data "images;images" \
               --add-data "UserGuide.md;UserGuide.md" \
-              --collect-data ttkbootstrap \
               src/main.py
-          else  # macOS
+          else
             pyinstaller --onefile \
-              --add-data "$(python -c "import tkinter; print(tkinter.__file__)")/../../tcl8.6:tk" \
-              --add-data "$(python -c "import tkinter; print(tkinter.__file__)")/../../tk8.6:tcl" \
               --add-data "images:images" \
               --add-data "UserGuide.md:UserGuide.md" \
               --collect-data ttkbootstrap \
