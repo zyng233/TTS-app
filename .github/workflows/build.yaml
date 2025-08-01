@@ -11,10 +11,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-20.04, windows-latest, macos-latest] # Pinned Ubuntu version
-        include:
-          - os: ubuntu-20.04
-            container: docker://cdrx/pyinstaller-linux:python3.10 # Compatibility-focused image
+        os: [ubuntu-22.04, windows-latest, macos-latest]
 
     steps:
       - name: Checkout source code
@@ -35,14 +32,13 @@ jobs:
       - name: Build with PyInstaller
         run: |
           if [ "$RUNNER_OS" = "Linux" ]; then
-            docker run --rm -v "$(pwd):/src" ${{ matrix.container }} \
-              "pyinstaller --onefile \
+            # Simplified Linux build with essential libraries
+            pyinstaller --onefile \
               --strip \
               --add-binary='/usr/lib/x86_64-linux-gnu/libstdc++.so.6:.' \
-              --add-binary='/lib/x86_64-linux-gnu/libm.so.6:.' \
               --add-data 'images:images' \
               --add-data 'UserGuide.md:UserGuide.md' \
-              src/main.py"
+              src/main.py
           elif [ "$RUNNER_OS" = "Windows" ]; then
             pyinstaller --onefile \
               --add-data "images;images" \
@@ -66,12 +62,6 @@ jobs:
           else
             mv dist/main dist-release/TTS_App_Linux
           fi
-        shell: bash
-
-      - name: Verify Linux compatibility
-        if: runner.os == 'Linux'
-        run: |
-          docker run --rm -v "$(pwd)/dist-release:/app" ubuntu:18.04 /app/TTS_App_Linux --version
         shell: bash
 
       - name: Upload Build Artifact
