@@ -364,7 +364,8 @@ class TTSApp(tk.Tk):
 
         except RuntimeError as e:
             if "does not support SSML" in str(e) and tts_params.get('is_ssml', False):
-                self._handle_ssml_fallback()
+                messagebox.showerror("Generation Error", f"Voice doesn't support SSML - using plain text")
+                self.update_status_meter(0, "Generation Error")
             else:
                 messagebox.showerror("Generation Error", f"Failed to generate speech:\n{str(e)}")
                 self.update_status_meter(0, "Generation Error")
@@ -479,12 +480,6 @@ class TTSApp(tk.Tk):
                 messagebox.showinfo("Success", f"Audio saved to:\n{file_path}")
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to save file:\n{str(e)}")
-
-    def _handle_ssml_fallback(self):
-        """Handle SSML fallback scenario"""
-        self.update_status_meter(0, "Voice doesn't support SSML - using plain text")
-        self.update_idletasks()
-        self.after(3000, lambda: self.update_status_meter(0, "Ready"))
 
     def _on_reopen(self):
         """Handle macOS app reopen event (for App Store)"""
