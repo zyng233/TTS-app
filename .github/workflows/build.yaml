@@ -36,11 +36,11 @@ jobs:
       - name: Install Python dependencies
         shell: bash
         run: |
-          pip install --upgrade pip pyinstaller ttkbootstrap pygame
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          python -m pip install --upgrade pip
+          python -m pip install pyinstaller ttkbootstrap pygame
+          if [ -f requirements.txt ]; then python -m pip install -r requirements.txt; fi
 
-      - name: Create PyInstaller hook for Tcl/Tk
-        shell: bash
+      - name: Create PyInstaller hook
         run: |
           echo "from PyInstaller.utils.hooks import collect_data_files" > hook-tkinter.py
           echo "datas = collect_data_files('tkinter')" >> hook-tkinter.py
@@ -48,7 +48,7 @@ jobs:
       - name: Build with PyInstaller
         shell: bash
         run: |
-          pyinstaller --onefile \
+          python -m PyInstaller --onefile \
             --add-data 'images:images' \
             --add-data 'UserGuide.md:UserGuide.md' \
             --hidden-import='ttkbootstrap.localization' \
