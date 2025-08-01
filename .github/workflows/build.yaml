@@ -43,10 +43,7 @@ jobs:
               --add-data='UserGuide.md:UserGuide.md' \
               src/main.py"
           elif [ "$RUNNER_OS" = "Windows" ]; then
-            pyinstaller --onefile ^
-              --add-data "images;images" ^
-              --add-data "UserGuide.md;UserGuide.md" ^
-              src/main.py
+            pyinstaller --onefile --add-data "images;images" --add-data "UserGuide.md;UserGuide.md" src/main.py
           else
             pyinstaller --onefile \
               --add-data "images:images" \
@@ -54,7 +51,6 @@ jobs:
               --target-arch universal2 \
               --osx-bundle-identifier com.yourdomain.ttsapp \
               src/main.py
-          fi
         shell: bash
 
       - name: Rename and move binary
@@ -66,7 +62,6 @@ jobs:
             mv dist/main dist-release/TTS_App_macOS
           else
             mv dist/main dist-release/TTS_App_Linux
-          fi
         shell: bash
 
       - name: Verify binaries
@@ -77,7 +72,6 @@ jobs:
             ./dist-release/TTS_App_Windows.exe --version
           else
             ./dist-release/TTS_App_macOS --version
-          fi
         shell: bash
 
       - name: Upload artifacts
