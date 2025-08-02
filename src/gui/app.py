@@ -155,42 +155,32 @@ class TTSApp(tk.Tk):
         if not self.winfo_exists():
             return
         
-        linux_cursors = {
-            "watch": [
-                "wait",          
-                "left_ptr_watch",  
-                "progress",     
-                "watch",       
-                "pointer_watch", 
-                ""                
-            ],
-            "": [
-                "left_ptr",       
-                "default",        
-                "arrow",         
-                ""              
-            ]
+        cursor_aliases = {
+            "watch": {
+                "linux": ["wait", "left_ptr_watch", "progress", ""],
+                "default": ["watch", ""]
+            },
+            "": {
+                "linux": ["", "left_ptr", "arrow"],
+                "default": ["", "arrow"]
+            }
         }
         
-        try:
-            if platform.system() == "Linux":
-                for cursor_name in linux_cursors.get(cursor_type, [cursor_type]):
-                    try:
-                        self.tk.call("tk", "setCursor", self._w, cursor_name)
-                        self.update_idletasks()
-                        return
-                    except tk.TclError:
-                        continue
-                self.tk.call("tk", "setCursor", self._w, "")
-            else:
-                self.config(cursor=cursor_type)
-        except Exception:
+        platform_key = "linux" if platform.system() == "Linux" else "default"
+        cursor_options = cursor_aliases.get(cursor_type, {}).get(platform_key, [""])
+        
+        for cursor_name in cursor_options:
             try:
-                self.config(cursor="")
-            except:
-                pass
-        finally:
-            self.update_idletasks()
+                self.tk.call("tk", "setCursor", self._w, cursor_name)
+                self.update_idletasks()
+                return
+            except tk.TclError:
+                continue
+        
+        try:
+            self.config(cursor="")
+        except:
+            pass
         
     def switch_service(self, service: TTSService):
         """Thread-safe service switching with cursor guarantees"""
@@ -199,10 +189,12 @@ class TTSApp(tk.Tk):
         
         def _execute_switch():
             try:
+                if not self.winfo_exists():
+                    return
+                
                 self._safe_set_cursor("watch")
                 self.service_switcher.disable()
                 self.update_status_meter(0, f"Switching to {service.name}...")
-                
                 self.update()
                 
                 if hasattr(self, 'service_controls_frame'):
@@ -211,11 +203,9 @@ class TTSApp(tk.Tk):
                 
                 try:
                     self._perform_service_switch(service)
-                finally:
-                    self._safe_set_cursor("")
-                    self.service_switcher.enable()
-                    self.update_status_meter(100, f"Switched to {service.name}")
-                    self.after(1000, lambda: self.update_status_meter(0, "Ready"))
+                    self.after(0, self._finalize_successful_switch, service)
+                except Exception as e:
+                    self.after(0, self._handle_switch_failure, service, str(e))
                     
             except Exception as e:
                 self._safe_set_cursor("")
@@ -224,7 +214,39 @@ class TTSApp(tk.Tk):
                 messagebox.showerror("Error", f"Failed to switch to {service.name}: {str(e)}")
 
         self.after(0, _execute_switch)
-        
+    
+    def _finalize_successful_switch(self, service):
+        """Cleanup after successful switch"""
+        if not self.winfo_exists():
+            return
+            
+        try:
+            self._safe_set_cursor("")
+            self.service_switcher.enable()
+            self.update_status_meter(100, f"Switched to {service.name}")
+            self.after(1000, lambda: self.update_status_meter(0, "Ready"))
+        except:
+            pass
+
+    def _handle_switch_failure(self, service, error):
+        """Failure handler with window existence checks"""
+        if not self.winfo_exists():
+            return
+            
+        try:
+            self._safe_set_cursor("")
+            self.service_switcher.enable()
+            self.update_status_meter(0, f"Failed to switch to {service.name}")
+            
+            if self.winfo_exists():
+                try:
+                    messagebox.showerror("Error", 
+                        f"Failed to switch to {service.name}:\n{error}")
+                except:
+                    pass
+        except:
+            pass
+    
     def _perform_service_switch(self, service):
         """Perform the actual service switch in background"""
         try:
