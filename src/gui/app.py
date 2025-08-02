@@ -158,9 +158,9 @@ class TTSApp(tk.Tk):
         if platform.system() == "Linux":
             if cursor_type == "watch":
                 self.config(cursor="") 
-                self.service_switcher.config(relief=tk.SUNKEN, background='#f0f0f0')
+                self.service_switcher.config(style='danger.TButton') 
             else:
-                self.service_switcher.config(relief=tk.RAISED, background='')
+                self.service_switcher.config(style='primary.TButton')
             self.update_idletasks()
             return
 
