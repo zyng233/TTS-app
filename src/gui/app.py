@@ -153,34 +153,53 @@ class TTSApp(tk.Tk):
     def _safe_set_cursor(self, cursor_type):
         """Ultimate cross-platform cursor handling"""
         if not self.winfo_exists():
+            print("Window doesn't exist - skipping cursor change")
             return
         
-        cursor_aliases = {
+        print(f"\nAttempting cursor change to: {cursor_type}")
+        print(f"Platform: {platform.system()}")
+        
+        try:
+            available_cursors = self.tk.call('cursor', 'names')
+            print(f"System available cursors: {available_cursors}")
+        except:
+            print("Could not retrieve cursor list")
+            available_cursors = []
+        
+        cursor_priority = {
             "watch": {
-                "linux": ["wait", "left_ptr_watch", "progress", ""],
-                "default": ["watch", ""]
+                "linux": ["wait", "left_ptr_watch", "progress", "watch", 
+                        "pointer_watch", "half-busy", "left_ptr", ""],
+                "default": ["wait", "watch", ""]
             },
             "": {
-                "linux": ["", "left_ptr", "arrow"],
+                "linux": ["", "left_ptr", "arrow", "xterm", "default"],
                 "default": ["", "arrow"]
             }
         }
         
         platform_key = "linux" if platform.system() == "Linux" else "default"
-        cursor_options = cursor_aliases.get(cursor_type, {}).get(platform_key, [""])
+        cursor_options = cursor_priority.get(cursor_type, {}).get(platform_key, [""])
+        
+        print(f"Trying these cursors: {cursor_options}")
         
         for cursor_name in cursor_options:
             try:
+                print(f"Attempting cursor: {cursor_name}")
                 self.tk.call("tk", "setCursor", self._w, cursor_name)
                 self.update_idletasks()
+                print(f"Successfully set cursor to: {cursor_name}")
                 return
-            except tk.TclError:
+            except tk.TclError as e:
+                print(f"Failed to set cursor {cursor_name}: {str(e)}")
                 continue
         
+        print("All cursor options failed - using empty fallback")
         try:
             self.config(cursor="")
-        except:
-            pass
+            self.update_idletasks()
+        except Exception as e:
+            print(f"Final fallback failed: {str(e)}")
         
     def switch_service(self, service: TTSService):
         """Thread-safe service switching with cursor guarantees"""
