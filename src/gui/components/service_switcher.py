@@ -45,14 +45,7 @@ class ServiceSwitcher(ttk.Frame):
     def disable(self):
         """Disable the service switcher"""
         self.dropdown.config(state='disabled')
-        self.set_cursor('wait')
 
     def enable(self):
         """Enable the service switcher"""
         self.dropdown.config(state='readonly')
-        self.set_cursor('')
-
-    def set_cursor(self, cursor_type: str):
-        """Set cursor type for the switcher"""
-        self.dropdown.config(cursor=cursor_type)
-        self.config(cursor=cursor_type)
