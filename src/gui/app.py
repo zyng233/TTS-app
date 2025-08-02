@@ -152,17 +152,31 @@ class TTSApp(tk.Tk):
     
     def _safe_set_cursor(self, cursor_type):
         """Ultimate cross-platform cursor handling"""
+        debug_info = []
+        debug_info.append(f"\n=== Cursor Debug ===\nAttempting: {cursor_type}")
+        
         if not self.winfo_exists():
             return
         
         if platform.system() == "Linux":
-            if cursor_type == "watch":
-                self.config(cursor="") 
-                self.service_switcher.config(style='danger.TButton') 
-            else:
-                self.service_switcher.config(style='primary.TButton')
-            self.update_idletasks()
-            return
+            debug_info.append(f"Platform: {platform.system()}")
+            try:
+                if cursor_type == "watch":
+                    debug_info.append("Setting visual busy state")
+                    self.service_switcher.config(relief=tk.SUNKEN)
+                    self.service_switcher.config(text=f"Switching...")
+                else:
+                    debug_info.append("Resetting to normal state")
+                    self.service_switcher.config(relief=tk.RAISED)
+                    self.service_switcher.config(text=self.current_service.name)
+                
+                self.update_idletasks()
+                debug_info.append("Visual update complete")
+            except Exception as e:
+                debug_info.append(f"Visual indicator failed: {str(e)}")
+            finally:
+                print("\n".join(debug_info))
+                return
 
         try:
             self.config(cursor=cursor_type)
@@ -181,6 +195,7 @@ class TTSApp(tk.Tk):
                 if not self.winfo_exists():
                     return
                 
+                print("Setting busy state")
                 self._safe_set_cursor("watch")
                 self.service_switcher.disable()
                 self.update_status_meter(0, f"Switching to {service.name}...")
@@ -190,6 +205,7 @@ class TTSApp(tk.Tk):
                     for widget in self.service_controls_frame.winfo_children():
                         widget.destroy()
                 
+                print("Performing service switch")
                 try:
                     self._perform_service_switch(service)
                     self.after(0, self._finalize_successful_switch, service)
@@ -201,7 +217,8 @@ class TTSApp(tk.Tk):
                 self.service_switcher.enable()
                 self.update_status_meter(0, f"Failed to switch to {service.name}")
                 messagebox.showerror("Error", f"Failed to switch to {service.name}: {str(e)}")
-
+        
+        print("Starting switch process")
         self.after(0, _execute_switch)
     
     def _finalize_successful_switch(self, service):
